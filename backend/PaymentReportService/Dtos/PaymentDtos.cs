@@ -1,0 +1,59 @@
+using PaymentReportService.Enums;
+using System.ComponentModel.DataAnnotations;
+
+namespace PaymentReportService.Dtos;
+
+public sealed record AccountResponse(Guid Id, string Username, string FullName, string Email, string Phone, UserRole Role, Guid? ReferenceId, AccountStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record TuitionInvoiceResponse(Guid Id, string InvoiceCode, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal TotalAmount, decimal PaidAmount, decimal DebtAmount, DateTime DueDate, InvoiceStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record PaymentTransactionResponse(Guid Id, Guid InvoiceId, decimal Amount, PaymentMethod Method, DateTime PaymentDate, PaymentStatus Status, string? Note, string CreatedBy, DateTime CreatedAt);
+public sealed record LoginUserResponse(Guid Id, string Username, string FullName, UserRole Role, Guid? ReferenceId);
+public sealed record LoginResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, LoginUserResponse User);
+public sealed record RevenueOverviewResponse(decimal TotalRevenue, decimal TotalDebt, int PaidInvoices, int UnpaidInvoices, int PartialInvoices, int OverdueInvoices);
+public sealed record GroupAmountResponse(Guid Id, string Name, decimal TotalRevenue, decimal TotalDebt);
+public sealed record DashboardResponse(RevenueOverviewResponse Overview, IReadOnlyList<GroupAmountResponse> RevenueByCourse, IReadOnlyList<GroupAmountResponse> DebtByClass);
+
+public sealed class LoginRequest { [Required] public string Username { get; set; } = string.Empty; [Required] public string Password { get; set; } = string.Empty; }
+public class CreateAccountRequest
+{
+    [Required] public string Username { get; set; } = string.Empty;
+    [Required] public string Password { get; set; } = string.Empty;
+    [Required] public string FullName { get; set; } = string.Empty;
+    [Required, EmailAddress] public string Email { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public UserRole Role { get; set; }
+    public Guid? ReferenceId { get; set; }
+}
+public sealed class UpdateAccountRequest
+{
+    [Required] public string FullName { get; set; } = string.Empty;
+    [Required, EmailAddress] public string Email { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public UserRole Role { get; set; }
+    public Guid? ReferenceId { get; set; }
+}
+
+public class CreateTuitionInvoiceRequest
+{
+    [Required] public string InvoiceCode { get; set; } = string.Empty;
+    [Required] public Guid StudentId { get; set; }
+    [Required] public string StudentNameSnapshot { get; set; } = string.Empty;
+    [Required] public Guid CourseId { get; set; }
+    [Required] public string CourseNameSnapshot { get; set; } = string.Empty;
+    [Required] public Guid ClassId { get; set; }
+    [Required] public string ClassNameSnapshot { get; set; } = string.Empty;
+    [Range(0, double.MaxValue)] public decimal TotalAmount { get; set; }
+    [Range(0, double.MaxValue)] public decimal PaidAmount { get; set; }
+    public DateTime DueDate { get; set; }
+}
+public sealed class UpdateTuitionInvoiceRequest : CreateTuitionInvoiceRequest;
+
+public sealed class CreatePaymentRequest
+{
+    [Required] public Guid InvoiceId { get; set; }
+    [Range(0.01, double.MaxValue)] public decimal Amount { get; set; }
+    public PaymentMethod Method { get; set; }
+    public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
+    public PaymentStatus Status { get; set; } = PaymentStatus.Success;
+    public string? Note { get; set; }
+    public string CreatedBy { get; set; } = "system";
+}

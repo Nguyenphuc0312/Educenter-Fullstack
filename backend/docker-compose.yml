@@ -1,0 +1,91 @@
+services:
+  course-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: educenter-course-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "EduCenter@123456"
+    ports:
+      - "14331:1433"
+    volumes:
+      - course-db-data:/var/opt/mssql
+
+  student-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: educenter-student-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "EduCenter@123456"
+    ports:
+      - "14332:1433"
+    volumes:
+      - student-db-data:/var/opt/mssql
+
+  payment-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: educenter-payment-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "EduCenter@123456"
+    ports:
+      - "14333:1433"
+    volumes:
+      - payment-db-data:/var/opt/mssql
+
+  course-service:
+    build:
+      context: .
+      dockerfile: CourseScheduleService/Dockerfile
+    container_name: educenter-course-service
+    environment:
+      ASPNETCORE_URLS: "http://+:5001"
+      ConnectionStrings__CourseDB: "Server=course-db,1433;Database=CourseDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+    ports:
+      - "5001:5001"
+    depends_on:
+      - course-db
+
+  student-service:
+    build:
+      context: .
+      dockerfile: StudentAttendanceService/Dockerfile
+    container_name: educenter-student-service
+    environment:
+      ASPNETCORE_URLS: "http://+:5002"
+      ConnectionStrings__StudentDB: "Server=student-db,1433;Database=StudentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+    ports:
+      - "5002:5002"
+    depends_on:
+      - student-db
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: PaymentReportService/Dockerfile
+    container_name: educenter-payment-service
+    environment:
+      ASPNETCORE_URLS: "http://+:5003"
+      ConnectionStrings__PaymentDB: "Server=payment-db,1433;Database=PaymentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+    ports:
+      - "5003:5003"
+    depends_on:
+      - payment-db
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ApiGateway/Dockerfile
+    container_name: educenter-api-gateway
+    environment:
+      ASPNETCORE_URLS: "http://+:5000"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - course-service
+      - student-service
+      - payment-service
+
+volumes:
+  course-db-data:
+  student-db-data:
+  payment-db-data:
