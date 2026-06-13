@@ -800,6 +800,22 @@ const paymentsList = ref([])
 const tuitionList = ref([])
 const revenueOverview = ref(null)
 
+const paymentStatusNameToValue = { Success: 1, Pending: 2, Processing: 2, Failed: 3, Cancelled: 4 }
+const invoiceStatusNameToValue = { Unpaid: 1, Partial: 2, Paid: 3, Overdue: 4 }
+const paymentMethodNameToValue = { Cash: 1, BankTransfer: 2, Momo: 3, Vnpay: 4, VNPay: 4 }
+
+function paymentStatusValue(status) {
+  return Number.isFinite(Number(status)) ? Number(status) : paymentStatusNameToValue[status] || 0
+}
+
+function invoiceStatusValue(status) {
+  return Number.isFinite(Number(status)) ? Number(status) : invoiceStatusNameToValue[status] || 0
+}
+
+function paymentMethodValue(method) {
+  return Number.isFinite(Number(method)) ? Number(method) : paymentMethodNameToValue[method] || 0
+}
+
 // Tables columns
 const revenueColumns = [
   { title: 'Tên', dataIndex: 'name', key: 'name' },
@@ -842,7 +858,7 @@ const filteredTuition = computed(() => {
 const totalPaidRevenue = computed(() => {
   // Ưu tiên 1: từ filteredPayments (nếu có)
   const fromPayments = filteredPayments.value
-    .filter(p => Number(p.status) === 1)
+    .filter(p => paymentStatusValue(p.status) === 1)
     .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
   if (fromPayments > 0) return fromPayments
   // Fallback 2: tổng từ revenueByCourse + revenueByClass (khi API tổng quan thiếu)
@@ -854,7 +870,7 @@ const totalPaidRevenue = computed(() => {
 const totalDebtRevenue = computed(() => {
   // Ưu tiên 1: từ filteredTuition (nếu có)
   const fromTuition = filteredTuition.value
-    .filter(t => t.status === 1 || t.status === 2 || t.status === 4) // Unpaid, Partial, Overdue
+    .filter(t => [1, 2, 4].includes(invoiceStatusValue(t.status))) // Unpaid, Partial, Overdue
     .reduce((sum, t) => sum + parseFloat(t.debtAmount || 0), 0)
   if (fromTuition > 0) return fromTuition
   // Fallback 2: tổng từ debtByStudent + debtByClass
@@ -885,14 +901,14 @@ const collectionRate = computed(() => {
 })
 
 const avgTransactionValue = computed(() => {
-  const payments = filteredPayments.value.filter(p => Number(p.status) === 1)
+  const payments = filteredPayments.value.filter(p => paymentStatusValue(p.status) === 1)
   if (payments.length === 0) return 0
   return totalPaidRevenue.value / payments.length
 })
 
 // 1. Revenue trend (Line chart)
 const revenueTrendChartData = computed(() => {
-  const successPayments = [...filteredPayments.value].filter(p => p.status === 1)
+  const successPayments = [...filteredPayments.value].filter(p => paymentStatusValue(p.status) === 1)
   successPayments.sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate))
 
   const dailyMap = {}
@@ -996,8 +1012,9 @@ const topRevenueClass = computed(() => {
 const paymentMethodChartData = computed(() => {
   // Method mapping: 1 Cash, 2 Bank Transfer, 3 Momo, 4 VNPay
   const methods = { 1: 0, 2: 0, 3: 0, 4: 0 }
-  filteredPayments.value.filter(p => p.status === 1).forEach(p => {
-    methods[p.method] = (methods[p.method] || 0) + parseFloat(p.amount)
+  filteredPayments.value.filter(p => paymentStatusValue(p.status) === 1).forEach(p => {
+    const method = paymentMethodValue(p.method)
+    methods[method] = (methods[method] || 0) + parseFloat(p.amount)
   })
 
   return {
@@ -1016,7 +1033,8 @@ const invoiceStatusChartData = computed(() => {
   // Status mapping: 1 Unpaid, 2 Partial, 3 Paid, 4 Overdue
   const counts = { 1: 0, 2: 0, 3: 0, 4: 0 }
   filteredTuition.value.forEach(inv => {
-    counts[inv.status] = (counts[inv.status] || 0) + 1
+    const status = invoiceStatusValue(inv.status)
+    counts[status] = (counts[status] || 0) + 1
   })
 
   return {
@@ -1221,7 +1239,7 @@ const activePeriodLabel = computed(() => {
 })
 
 // ============ Debt tab KPIs ============
-const overdueInvoiceCount = computed(() => tuitionList.value.filter(t => Number(t.status) === 4).length)
+const overdueInvoiceCount = computed(() => tuitionList.value.filter(t => invoiceStatusValue(t.status) === 4).length)
 const totalDebtorsCount = computed(() => debtByStudent.value.filter(d => parseFloat(d.totalDebt || 0) > 0).length)
 
 const debtKpis = computed(() => [
@@ -1261,7 +1279,7 @@ const topDebtors = computed(() => {
 
 const recentTransactions = computed(() => {
   return [...paymentsList.value]
-    .filter(p => Number(p.status) === 1)
+    .filter(p => paymentStatusValue(p.status) === 1)
     .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))
     .slice(0, 5)
 })

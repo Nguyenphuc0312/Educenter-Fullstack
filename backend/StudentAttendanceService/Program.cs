@@ -19,6 +19,7 @@ builder.Services.AddDbContext<StudentDbContext>(options => options.UseSqlServer(
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddHttpClient<IEnrollmentPaymentSyncService, EnrollmentPaymentSyncService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IResultService, ResultService>();
 builder.Services.AddScoped<IStudentPortalService, StudentPortalService>();

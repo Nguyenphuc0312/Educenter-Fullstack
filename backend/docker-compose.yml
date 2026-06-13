@@ -53,10 +53,13 @@ services:
     environment:
       ASPNETCORE_URLS: "http://+:5002"
       ConnectionStrings__StudentDB: "Server=student-db,1433;Database=StudentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+      PaymentIntegration__BaseUrl: "http://payment-service:5003"
+      PaymentIntegration__InternalKey: "EduCenter-Internal-Service-Key-2026"
     ports:
       - "5002:5002"
     depends_on:
       - student-db
+      - payment-service
 
   payment-service:
     build:
@@ -66,6 +69,7 @@ services:
     environment:
       ASPNETCORE_URLS: "http://+:5003"
       ConnectionStrings__PaymentDB: "Server=payment-db,1433;Database=PaymentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+      InternalService__SecretKey: "EduCenter-Internal-Service-Key-2026"
     ports:
       - "5003:5003"
     depends_on:

@@ -3,23 +3,41 @@ using Microsoft.AspNetCore.Mvc;
 using PaymentReportService.Dtos;
 using PaymentReportService.Extensions;
 using PaymentReportService.Services;
+using System.Security.Claims;
 
 namespace PaymentReportService.Controllers;
 
 [ApiController]
 [Route("api/tuition-invoices")]
 [Authorize]
-public sealed class TuitionInvoicesController(IInvoiceService service) : ControllerBase
+public sealed class TuitionInvoicesController(IInvoiceService service, IConfiguration configuration) : ControllerBase
 {
-    [HttpGet] public async Task<IActionResult> GetAll(CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.GetAllAsync(ct)));
-    [HttpGet("{id:guid}")] public async Task<IActionResult> GetById(Guid id, CancellationToken ct) => Ok(ApiResponse<TuitionInvoiceResponse>.Ok(await service.GetByIdAsync(id, ct)));
-    [HttpGet("by-student/{studentId:guid}")] public async Task<IActionResult> ByStudent(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.ByStudentAsync(studentId, ct)));
-    [HttpGet("by-class/{classId:guid}")] public async Task<IActionResult> ByClass(Guid classId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.ByClassAsync(classId, ct)));
-    [HttpGet("debts")] public async Task<IActionResult> Debts(CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.DebtsAsync(ct)));
+    [HttpGet, Authorize(Roles = "Admin")] public async Task<IActionResult> GetAll(CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.GetAllAsync(ct)));
+    [HttpGet("{id:guid}"), Authorize(Roles = "Admin,Student")]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    {
+        var invoice = await service.GetByIdAsync(id, ct);
+        if (User.IsInRole("Student") && invoice.StudentId != GetReferenceId()) return Forbid();
+        return Ok(ApiResponse<TuitionInvoiceResponse>.Ok(invoice));
+    }
+    [HttpGet("by-student/{studentId:guid}"), Authorize(Roles = "Admin,Student")]
+    public async Task<IActionResult> ByStudent(Guid studentId, CancellationToken ct)
+    {
+        if (User.IsInRole("Student") && GetReferenceId() != studentId) return Forbid();
+        return Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.ByStudentAsync(studentId, ct)));
+    }
+    [HttpGet("by-class/{classId:guid}"), Authorize(Roles = "Admin")] public async Task<IActionResult> ByClass(Guid classId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.ByClassAsync(classId, ct)));
+    [HttpGet("debts"), Authorize(Roles = "Admin")] public async Task<IActionResult> Debts(CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<TuitionInvoiceResponse>>.Ok(await service.DebtsAsync(ct)));
     [HttpGet("export"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> Export(CancellationToken ct) =>
         this.ToCsvFile(await service.GetAllAsync(ct), "tuition-invoices.csv");
     [HttpPost, Authorize(Roles = "Admin")] public async Task<IActionResult> Create(CreateTuitionInvoiceRequest request, CancellationToken ct) => Ok(ApiResponse<TuitionInvoiceResponse>.Ok(await service.CreateAsync(request, ct), "Created"));
+    [HttpPost("from-enrollment"), AllowAnonymous]
+    public async Task<IActionResult> CreateFromEnrollment(CreateInvoiceFromEnrollmentRequest request, CancellationToken ct)
+    {
+        if (!IsValidInternalRequest()) return Forbid();
+        return Ok(ApiResponse<TuitionInvoiceResponse>.Ok(await service.CreateFromEnrollmentAsync(request, ct), "Invoice synced from enrollment"));
+    }
     [HttpPost("bulk-create"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> BulkCreate(List<CreateTuitionInvoiceRequest> requests, CancellationToken ct)
     {
@@ -44,6 +62,8 @@ public sealed class TuitionInvoicesController(IInvoiceService service) : Control
         return Ok(ApiResponse<BulkOperationResult<TuitionInvoiceResponse>>.Ok(new() { Items = items, Requested = requests.Count, Succeeded = items.Count }, "Bulk updated"));
     }
     [HttpPut("{id:guid}/mark-overdue"), Authorize(Roles = "Admin")] public async Task<IActionResult> MarkOverdue(Guid id, CancellationToken ct) => Ok(ApiResponse<TuitionInvoiceResponse>.Ok(await service.MarkOverdueAsync(id, ct)));
+    [HttpPut("mark-overdue-due"), Authorize(Roles = "Admin")]
+    public async Task<IActionResult> MarkOverdueDue(CancellationToken ct) => Ok(ApiResponse<object>.Ok(new { updated = await service.MarkOverdueDueInvoicesAsync(ct) }, "Due invoices marked overdue"));
     [HttpPut("bulk-mark-overdue"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> BulkMarkOverdue(BulkDeleteRequest request, CancellationToken ct)
     {
@@ -58,5 +78,18 @@ public sealed class TuitionInvoicesController(IInvoiceService service) : Control
     {
         foreach (var id in request.Ids.Distinct()) await service.DeleteAsync(id, ct);
         return Ok(ApiResponse<object>.Ok(new { requested = request.Ids.Count, succeeded = request.Ids.Distinct().Count() }, "Bulk deleted"));
+    }
+
+    private Guid? GetReferenceId()
+    {
+        var value = User.FindFirstValue("referenceId");
+        return Guid.TryParse(value, out var id) ? id : null;
+    }
+
+    private bool IsValidInternalRequest()
+    {
+        var expected = configuration["InternalService:SecretKey"];
+        if (string.IsNullOrWhiteSpace(expected)) return false;
+        return Request.Headers.TryGetValue("X-EduCenter-Internal-Key", out var actual) && actual == expected;
     }
 }

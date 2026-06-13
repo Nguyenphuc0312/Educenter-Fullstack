@@ -11,6 +11,7 @@ export const tuitionApi = {
   update: (id, data) => callApi(http.put(`/gateway/tuition/${id}`, data)),
   bulkUpdate: (items) => callApi(http.put('/gateway/tuition/bulk-update', items)),
   markOverdue: (id) => callApi(http.put(`/gateway/tuition/${id}/mark-overdue`)),
+  markOverdueDue: () => callApi(http.put('/gateway/tuition/mark-overdue-due')),
   bulkMarkOverdue: (ids) => callApi(http.put('/gateway/tuition/bulk-mark-overdue', { ids })),
   delete: (id) => callApi(http.delete(`/gateway/tuition/${id}`)),
   bulkDelete: (ids) => callApi(http.post('/gateway/tuition/bulk-delete', { ids })),

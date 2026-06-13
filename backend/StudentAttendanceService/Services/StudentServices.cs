@@ -4,6 +4,7 @@ using StudentAttendanceService.Entities;
 using StudentAttendanceService.Enums;
 using StudentAttendanceService.Mappings;
 using StudentAttendanceService.Repositories;
+using System.Net.Http.Json;
 
 namespace StudentAttendanceService.Services;
 
@@ -76,7 +77,7 @@ public interface IEnrollmentService
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
-public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students) : IEnrollmentService
+public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IEnrollmentPaymentSyncService paymentSync) : IEnrollmentService
 {
     public async Task<IReadOnlyList<EnrollmentResponse>> GetAllAsync(CancellationToken cancellationToken) => await enrollments.Query().OrderByDescending(x => x.EnrolledAt).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<EnrollmentResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) => (await enrollments.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Enrollment")).ToResponse();
@@ -102,6 +103,10 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
         entity.Status = status;
         entity.UpdatedAt = DateTime.UtcNow;
         await enrollments.SaveChangesAsync(cancellationToken);
+        if (status is EnrollmentStatus.Confirmed or EnrollmentStatus.Studying)
+        {
+            await paymentSync.SyncInvoiceAsync(entity, cancellationToken);
+        }
         return entity.ToResponse();
     }
 
@@ -114,6 +119,61 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
 
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
+}
+
+public interface IEnrollmentPaymentSyncService
+{
+    Task SyncInvoiceAsync(Enrollment enrollment, CancellationToken cancellationToken);
+}
+
+public sealed class EnrollmentPaymentSyncService(HttpClient httpClient, IConfiguration configuration, ILogger<EnrollmentPaymentSyncService> logger) : IEnrollmentPaymentSyncService
+{
+    public async Task SyncInvoiceAsync(Enrollment enrollment, CancellationToken cancellationToken)
+    {
+        if (!configuration.GetValue("PaymentIntegration:Enabled", true)) return;
+
+        var baseUrl = configuration["PaymentIntegration:BaseUrl"]?.TrimEnd('/');
+        var internalKey = configuration["PaymentIntegration:InternalKey"];
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(internalKey))
+        {
+            logger.LogWarning("Payment integration is missing BaseUrl or InternalKey.");
+            return;
+        }
+
+        var totalAmount = configuration.GetValue("PaymentIntegration:DefaultTuitionAmount", 2500000m);
+        var dueDays = configuration.GetValue("PaymentIntegration:DefaultDueDays", 14);
+        var request = new
+        {
+            enrollmentId = enrollment.Id,
+            studentId = enrollment.StudentId,
+            studentNameSnapshot = enrollment.StudentNameSnapshot,
+            courseId = enrollment.CourseId,
+            courseNameSnapshot = enrollment.CourseNameSnapshot,
+            classId = enrollment.ClassId,
+            classNameSnapshot = enrollment.ClassNameSnapshot,
+            totalAmount,
+            dueDate = DateTime.UtcNow.AddDays(dueDays)
+        };
+
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/tuition-invoices/from-enrollment")
+        {
+            Content = JsonContent.Create(request)
+        };
+        message.Headers.Add("X-EduCenter-Internal-Key", internalKey);
+
+        try
+        {
+            var response = await httpClient.SendAsync(message, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Payment invoice sync failed with status {StatusCode}.", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Payment invoice sync failed. Enrollment status was still updated.");
+        }
+    }
 }
 
 public interface IAttendanceService
