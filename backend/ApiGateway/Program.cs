@@ -38,6 +38,7 @@ var app = builder.Build();
 
 app.UseCors("EduCenterCors");
 app.UseAuthentication();
+app.UseAuthorization();
 app.MapGet("/", () => "EduCenter API Gateway");
 await app.UseOcelot();
 

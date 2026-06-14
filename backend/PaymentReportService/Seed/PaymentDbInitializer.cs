@@ -12,6 +12,7 @@ public static class PaymentDbInitializer
     {
         var db = services.GetRequiredService<PaymentDbContext>();
         await db.Database.EnsureCreatedAsync();
+        await EnsureSchemaAsync(db);
         var hasher = services.GetRequiredService<IPasswordHasher>();
         var now = new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
 
@@ -88,5 +89,28 @@ public static class PaymentDbInitializer
             CreatedAt = now,
             UpdatedAt = now
         };
+    }
+
+    private static async Task EnsureSchemaAsync(PaymentDbContext db)
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+            IF COL_LENGTH('TuitionInvoices', 'EnrollmentId') IS NULL
+                ALTER TABLE TuitionInvoices ADD EnrollmentId uniqueidentifier NULL;
+            """);
+        await db.Database.ExecuteSqlRawAsync("""
+            IF COL_LENGTH('TuitionInvoices', 'PartialPaymentDueDate') IS NULL
+                ALTER TABLE TuitionInvoices ADD PartialPaymentDueDate datetime2 NULL;
+            """);
+        await db.Database.ExecuteSqlRawAsync("""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE name = 'IX_TuitionInvoices_EnrollmentId'
+                  AND object_id = OBJECT_ID('TuitionInvoices')
+            )
+                CREATE UNIQUE INDEX IX_TuitionInvoices_EnrollmentId
+                ON TuitionInvoices(EnrollmentId)
+                WHERE EnrollmentId IS NOT NULL;
+            """);
     }
 }

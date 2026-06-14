@@ -172,8 +172,31 @@
             </div>
             <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
               <span class="text-base font-semibold text-slate-800">Số tiền cần thanh toán</span>
-              <span class="text-2xl font-black text-blue-600">{{ formatVnd(selectedInvoice.debtAmount) }}</span>
+              <span class="text-2xl font-black text-blue-600">{{ formatVnd(paymentAmount) }}</span>
             </div>
+          </div>
+
+          <h3 class="font-bold text-slate-800 mb-3">Chọn mức đóng học phí</h3>
+          <div v-if="canChoosePartial" class="grid grid-cols-2 gap-3 mb-6">
+            <button
+              type="button"
+              class="py-3 rounded-xl border text-sm font-bold transition-all"
+              :class="paymentPercent === 50 ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400'"
+              @click="paymentPercent = 50"
+            >
+              Đóng 50%
+            </button>
+            <button
+              type="button"
+              class="py-3 rounded-xl border text-sm font-bold transition-all"
+              :class="paymentPercent === 100 ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400'"
+              @click="paymentPercent = 100"
+            >
+              Đóng đủ 100%
+            </button>
+          </div>
+          <div v-else class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+            Hóa đơn đã được thanh toán một phần. Lần thanh toán tiếp theo cần đóng toàn bộ số tiền còn lại.
           </div>
 
           <h3 class="font-bold text-slate-800 mb-3">Chọn phương thức thanh toán</h3>
@@ -198,9 +221,9 @@
 
             <label
               class="flex items-center p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
-              :class="{ 'border-blue-500 ring-1 ring-blue-500 bg-blue-50': paymentMethod === 'vietqr' }"
+              :class="{ 'border-blue-500 ring-1 ring-blue-500 bg-blue-50': paymentMethod === 'bank' }"
             >
-              <input type="radio" v-model="paymentMethod" value="vietqr" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+              <input type="radio" v-model="paymentMethod" value="bank" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
               <span class="ml-3 font-medium text-slate-800">Chuyển khoản / VietQR</span>
               <svg class="ml-auto h-6 w-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             </label>
@@ -231,11 +254,11 @@
           </p>
 
           <div class="bg-white p-4 rounded-2xl border-2 border-dashed border-blue-200 inline-block mb-6 relative">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg" alt="QR Code" class="w-48 h-48 mx-auto" />
-            <div class="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl" v-if="isCheckingPayment">
+            <img :src="paymentQrUrl" alt="QR Code" class="w-48 h-48 mx-auto object-contain" />
+            <div class="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl" v-if="isSubmittingPayment">
               <div class="flex flex-col items-center gap-2">
                 <LoadingSpinner size="md" class="text-blue-600" />
-                <span class="text-sm font-semibold text-blue-600 animate-pulse">Đang chờ thanh toán...</span>
+                <span class="text-sm font-semibold text-blue-600 animate-pulse">Đang gửi yêu cầu xác nhận...</span>
               </div>
             </div>
           </div>
@@ -256,10 +279,12 @@
               Quay lại chọn cách khác
             </button>
             <button
-              class="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors flex justify-center items-center"
-              @click="simulatePaymentSuccess"
+              class="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors flex justify-center items-center disabled:opacity-70 disabled:cursor-not-allowed"
+              :disabled="isSubmittingPayment"
+              @click="submitPaymentRequest"
             >
-              Đã thanh toán xong
+              <LoadingSpinner v-if="isSubmittingPayment" size="sm" class="!text-white" />
+              <span v-else>Gửi yêu cầu xác nhận</span>
             </button>
           </div>
         </div>
@@ -275,6 +300,7 @@ import dayjs from "dayjs";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import LoadingSpinner from "@/components/ui/LoadingSpinner.vue";
 import { tuitionApi } from "@/api/tuitionApi";
+import { paymentApi } from "@/api/paymentApi";
 import { useAuthStore } from "@/stores/auth";
 import { formatDate, formatVnd } from "@/lib/formatters";
 import { downloadExcelReport, reportFilename } from "@/lib/exportDocuments";
@@ -299,16 +325,27 @@ const columns = [
 const isPaymentModalVisible = ref(false);
 const selectedInvoice = ref(null);
 const paymentMethod = ref("vnpay");
+const paymentPercent = ref(100);
 const isProcessing = ref(false);
+const isSubmittingPayment = ref(false);
 const paymentStep = ref(1); 
-const isCheckingPayment = ref(false);
+const paymentQrUrl = import.meta.env.VITE_PAYMENT_QR_URL || "https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg";
+
+const canChoosePartial = computed(() => Number(selectedInvoice.value?.paidAmount || 0) <= 0);
+
+const paymentAmount = computed(() => {
+  const debt = Number(selectedInvoice.value?.debtAmount || 0);
+  const total = Number(selectedInvoice.value?.totalAmount || 0);
+  if (!canChoosePartial.value) return debt;
+  return paymentPercent.value === 50 ? Math.min(Math.round(total * 0.5), debt) : debt;
+});
 
 // Tên phương thức hiển thị
 const paymentMethodName = computed(() => {
   const methods = {
     vnpay: "VNPAY",
     momo: "MoMo",
-    vietqr: "Ngân hàng (VietQR)",
+    bank: "Ngân hàng (VietQR)",
   };
   return methods[paymentMethod.value] || "Thanh toán";
 });
@@ -445,9 +482,9 @@ async function downloadReceipt(invoice) {
 function openPaymentModal(invoice) {
   selectedInvoice.value = invoice;
   paymentMethod.value = "vnpay";
+  paymentPercent.value = 100;
   paymentStep.value = 1;
   isPaymentModalVisible.value = true;
-  isCheckingPayment.value = false;
 }
 
 // Thanh toán - Tạo mã QR
@@ -456,7 +493,6 @@ async function generateQR() {
   try {
     await new Promise((resolve) => setTimeout(resolve, 800)); 
     paymentStep.value = 2;
-    isCheckingPayment.value = true;
   } catch (error) {
     message.error("Không thể tạo mã QR. Vui lòng kiểm tra lại kết nối.");
   } finally {
@@ -465,10 +501,25 @@ async function generateQR() {
 }
 
 // Thanh toán - Giả lập xác nhận thành công
-function simulatePaymentSuccess() {
-  message.success(`Thanh toán thành công cho hóa đơn ${selectedInvoice.value.invoiceCode}`);
-  isPaymentModalVisible.value = false;
-  loadData(); 
+async function submitPaymentRequest() {
+  if (!selectedInvoice.value) return;
+  isSubmittingPayment.value = true;
+  try {
+    const methodMap = { bank: 2, momo: 3, vnpay: 4 };
+    await paymentApi.studentRequest({
+      invoiceId: selectedInvoice.value.id,
+      percent: canChoosePartial.value ? paymentPercent.value : 100,
+      method: methodMap[paymentMethod.value] || 2,
+      note: `Học viên gửi yêu cầu thanh toán ${canChoosePartial.value ? paymentPercent.value : 100}% qua ${paymentMethodName.value}`,
+    });
+    message.success("Đã gửi yêu cầu thanh toán. Admin xác nhận xong hóa đơn sẽ cập nhật.");
+    isPaymentModalVisible.value = false;
+    await loadData();
+  } catch (error) {
+    message.error(error.message || "Không thể gửi yêu cầu thanh toán.");
+  } finally {
+    isSubmittingPayment.value = false;
+  }
 }
 
 // Helpers giao diện

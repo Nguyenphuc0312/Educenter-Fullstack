@@ -26,6 +26,10 @@ builder.Services.AddHttpClient<IClassCapacityClient, ClassCapacityClient>(client
 {
     client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:CourseSchedule"] ?? "http://127.0.0.1:5001");
 });
+builder.Services.AddHttpClient<IPaymentInvoiceClient, PaymentInvoiceClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:PaymentReport"] ?? "http://127.0.0.1:5003");
+});
 
 var app = builder.Build();
 

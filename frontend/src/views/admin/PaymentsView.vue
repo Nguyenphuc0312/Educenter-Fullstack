@@ -66,7 +66,14 @@
       <!-- Row actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
-          v-if="record.status !== 3 && record.status !== 4"
+          v-if="record.status === 2 || record.status === 'Pending'"
+          class="rounded-lg px-3 py-2 text-xs text-emerald-600"
+          @click="triggerConfirmOne(record.id, refresh)"
+        >
+          Xác nhận thanh toán
+        </a-menu-item>
+        <a-menu-item
+          v-if="record.status === 2 || record.status === 'Pending'"
           class="rounded-lg px-3 py-2 text-xs text-rose-600"
           @click="triggerCancelOne(record.id, refresh)"
         >
@@ -130,7 +137,7 @@ import { PAYMENT_METHOD, PAYMENT_STATUS, toOptions } from '@/lib/constants'
 import { formatVnd } from '@/lib/formatters'
 
 const statusOptions = toOptions(PAYMENT_STATUS, { 1: 'green', 2: 'blue', 3: 'red', 4: 'default' })
-const methodOptions = toOptions(PAYMENT_METHOD)
+const methodOptions = toOptions(PAYMENT_METHOD).filter((item) => item.value !== 1)
 
 // Filter states
 const filterStatus = ref(undefined)
@@ -158,7 +165,7 @@ const columns = [
 const fields = [
   { name: 'invoiceId', label: 'Mã hóa đơn', required: true, default: '' },
   { name: 'amount', label: 'Số tiền', type: 'number', required: true, default: 0 },
-  { name: 'method', label: 'Phương thức', type: 'select', options: methodOptions, default: 1 },
+  { name: 'method', label: 'Phương thức', type: 'select', options: methodOptions, default: 2 },
   { name: 'paymentDate', label: 'Ngày thanh toán', type: 'date', default: '' },
   { name: 'status', label: 'Trạng thái', type: 'select', options: statusOptions, default: 1 },
   { name: 'createdBy', label: 'Người tạo', default: 'admin' },
@@ -231,6 +238,17 @@ function formatDate(value) {
 }
 
 // Confirm trigger helpers
+function triggerConfirmOne(id, refresh) {
+  confirmTitle.value = 'Xác nhận thanh toán?'
+  confirmMsg.value = 'Giao dịch sẽ được ghi nhận thành công và cập nhật công nợ hóa đơn.'
+  confirmActionCallback = async () => {
+    await paymentApi.confirm(id)
+    message.success('Đã xác nhận thanh toán')
+    refresh()
+  }
+  confirmOpen.value = true
+}
+
 function triggerCancelOne(id, refresh) {
   confirmTitle.value = 'Hủy giao dịch này?'
   confirmMsg.value = 'Giao dịch sẽ bị đánh dấu là đã hủy và không thể hoàn nguyên.'

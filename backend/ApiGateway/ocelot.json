@@ -3,28 +3,28 @@
     {
       "DownstreamPathTemplate": "/api/auth/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5003 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-payment-service", "Port": 5003 }],
       "UpstreamPathTemplate": "/gateway/auth/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
     },
     {
       "DownstreamPathTemplate": "/api/courses/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-course-service", "Port": 5001 }],
       "UpstreamPathTemplate": "/gateway/courses/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
     },
     {
       "DownstreamPathTemplate": "/api/classes/opening",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-course-service", "Port": 5001 }],
       "UpstreamPathTemplate": "/gateway/classes/opening",
       "UpstreamHttpMethod": [ "GET" ]
     },
     {
       "DownstreamPathTemplate": "/api/classes/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-course-service", "Port": 5001 }],
       "UpstreamPathTemplate": "/gateway/classes/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -32,14 +32,14 @@
     {
       "DownstreamPathTemplate": "/api/teachers/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-course-service", "Port": 5001 }],
       "UpstreamPathTemplate": "/gateway/teachers/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
     },
     {
       "DownstreamPathTemplate": "/api/schedules/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-course-service", "Port": 5001 }],
       "UpstreamPathTemplate": "/gateway/schedules/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -47,7 +47,7 @@
     {
       "DownstreamPathTemplate": "/api/students/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-student-service", "Port": 5002 }],
       "UpstreamPathTemplate": "/gateway/students/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -55,7 +55,7 @@
     {
       "DownstreamPathTemplate": "/api/enrollments/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-student-service", "Port": 5002 }],
       "UpstreamPathTemplate": "/gateway/enrollments/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -63,7 +63,7 @@
     {
       "DownstreamPathTemplate": "/api/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-student-service", "Port": 5002 }],
       "UpstreamPathTemplate": "/gateway/attendance/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -71,7 +71,7 @@
     {
       "DownstreamPathTemplate": "/api/results/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-student-service", "Port": 5002 }],
       "UpstreamPathTemplate": "/gateway/results/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -79,7 +79,7 @@
     {
       "DownstreamPathTemplate": "/api/accounts/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5003 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-payment-service", "Port": 5003 }],
       "UpstreamPathTemplate": "/gateway/accounts/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -87,7 +87,7 @@
     {
       "DownstreamPathTemplate": "/api/tuition-invoices/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5003 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-payment-service", "Port": 5003 }],
       "UpstreamPathTemplate": "/gateway/tuition/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -95,7 +95,7 @@
     {
       "DownstreamPathTemplate": "/api/payments/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5003 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-payment-service", "Port": 5003 }],
       "UpstreamPathTemplate": "/gateway/payments/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
@@ -103,7 +103,7 @@
     {
       "DownstreamPathTemplate": "/api/reports/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5003 }],
+      "DownstreamHostAndPorts": [{ "Host": "educenter-payment-service", "Port": 5003 }],
       "UpstreamPathTemplate": "/gateway/reports/{everything}",
       "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }

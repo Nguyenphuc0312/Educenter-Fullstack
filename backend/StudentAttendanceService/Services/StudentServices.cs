@@ -5,6 +5,7 @@ using StudentAttendanceService.Enums;
 using StudentAttendanceService.Mappings;
 using StudentAttendanceService.Repositories;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace StudentAttendanceService.Services;
@@ -83,6 +84,7 @@ public interface IClassCapacityClient
 {
     Task IncreaseStudentCountAsync(Guid classId, string? bearerToken, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<Guid, int>> GetCourseTotalSessionsAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken);
+    Task<decimal?> GetCourseTuitionFeeAsync(Guid courseId, CancellationToken cancellationToken);
 }
 
 public sealed class ClassCapacityClient(HttpClient httpClient) : IClassCapacityClient
@@ -110,17 +112,61 @@ public sealed class ClassCapacityClient(HttpClient httpClient) : IClassCapacityC
             if (!response.IsSuccessStatusCode) continue;
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var payload = await JsonSerializer.DeserializeAsync<ApiResponse<CourseSessionSnapshot>>(stream, JsonOptions, cancellationToken);
+            var payload = await JsonSerializer.DeserializeAsync<ApiResponse<CourseSnapshot>>(stream, JsonOptions, cancellationToken);
             if (payload?.Data is { TotalSessions: > 0 } course) result[courseId] = course.TotalSessions;
         }
 
         return result;
     }
 
-    private sealed record CourseSessionSnapshot(Guid Id, int TotalSessions);
+    public async Task<decimal?> GetCourseTuitionFeeAsync(Guid courseId, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync($"/api/courses/{courseId}", cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var payload = await JsonSerializer.DeserializeAsync<ApiResponse<CourseSnapshot>>(stream, JsonOptions, cancellationToken);
+        return payload?.Data?.TuitionFee;
+    }
+
+    private sealed record CourseSnapshot(Guid Id, int TotalSessions, decimal TuitionFee);
 }
 
-public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IClassCapacityClient classCapacity) : IEnrollmentService
+public interface IPaymentInvoiceClient
+{
+    Task CreateInvoiceForEnrollmentAsync(Enrollment enrollment, decimal tuitionFee, string? bearerToken, CancellationToken cancellationToken);
+}
+
+public sealed class PaymentInvoiceClient(HttpClient httpClient) : IPaymentInvoiceClient
+{
+    private sealed record CreateInvoiceFromEnrollmentRequest(Guid EnrollmentId, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal TotalAmount, DateTime DueDate);
+
+    public async Task CreateInvoiceForEnrollmentAsync(Enrollment enrollment, decimal tuitionFee, string? bearerToken, CancellationToken cancellationToken)
+    {
+        if (tuitionFee <= 0) return;
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tuition-invoices/from-enrollment");
+        if (!string.IsNullOrWhiteSpace(bearerToken)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        request.Content = JsonContent.Create(new CreateInvoiceFromEnrollmentRequest(
+            enrollment.Id,
+            enrollment.StudentId,
+            enrollment.StudentNameSnapshot,
+            enrollment.CourseId,
+            enrollment.CourseNameSnapshot,
+            enrollment.ClassId,
+            enrollment.ClassNameSnapshot,
+            tuitionFee,
+            DateTime.UtcNow.AddDays(14)));
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.IsSuccessStatusCode) return;
+
+        var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+        throw new AppException($"Cannot create tuition invoice. Payment service returned {(int)response.StatusCode}: {detail}", StatusCodes.Status502BadGateway);
+    }
+}
+
+public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IClassCapacityClient classCapacity, IPaymentInvoiceClient paymentInvoices) : IEnrollmentService
 {
     public async Task<IReadOnlyList<EnrollmentResponse>> GetAllAsync(CancellationToken cancellationToken) => await enrollments.Query().OrderByDescending(x => x.EnrolledAt).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<EnrollmentResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) => (await enrollments.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Enrollment")).ToResponse();
@@ -147,6 +193,8 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
 
         EnsureValidTransition(entity.Status, EnrollmentStatus.Confirmed);
         await classCapacity.IncreaseStudentCountAsync(entity.ClassId, bearerToken, cancellationToken);
+        var tuitionFee = await classCapacity.GetCourseTuitionFeeAsync(entity.CourseId, cancellationToken);
+        if (tuitionFee is > 0) await paymentInvoices.CreateInvoiceForEnrollmentAsync(entity, tuitionFee.Value, bearerToken, cancellationToken);
 
         entity.Status = EnrollmentStatus.Confirmed;
         entity.UpdatedAt = DateTime.UtcNow;

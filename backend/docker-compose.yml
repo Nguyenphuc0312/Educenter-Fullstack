@@ -9,6 +9,12 @@ services:
       - "14331:1433"
     volumes:
       - course-db-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'EduCenter@123456' -C -Q 'SELECT 1' -b"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   student-db:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -20,6 +26,12 @@ services:
       - "14332:1433"
     volumes:
       - student-db-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'EduCenter@123456' -C -Q 'SELECT 1' -b"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   payment-db:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -31,6 +43,12 @@ services:
       - "14333:1433"
     volumes:
       - payment-db-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'EduCenter@123456' -C -Q 'SELECT 1' -b"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   course-service:
     build:
@@ -43,7 +61,8 @@ services:
     ports:
       - "5001:5001"
     depends_on:
-      - course-db
+      course-db:
+        condition: service_healthy
 
   student-service:
     build:
@@ -53,10 +72,15 @@ services:
     environment:
       ASPNETCORE_URLS: "http://+:5002"
       ConnectionStrings__StudentDB: "Server=student-db,1433;Database=StudentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+      ServiceUrls__CourseSchedule: "http://course-service:5001"
+      ServiceUrls__PaymentReport: "http://payment-service:5003"
     ports:
       - "5002:5002"
     depends_on:
-      - student-db
+      student-db:
+        condition: service_healthy
+      course-service:
+        condition: service_started
 
   payment-service:
     build:
@@ -69,7 +93,8 @@ services:
     ports:
       - "5003:5003"
     depends_on:
-      - payment-db
+      payment-db:
+        condition: service_healthy
 
   api-gateway:
     build:
@@ -81,9 +106,12 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      - course-service
-      - student-service
-      - payment-service
+      course-service:
+        condition: service_started
+      student-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
 
 volumes:
   course-db-data:
