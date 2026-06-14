@@ -519,9 +519,13 @@ const cutoffDate = computed(() => {
   return d
 })
 
+function isSuccessPayment(payment) {
+  return Number(payment?.status) === 1 || payment?.status === 'Success'
+}
+
 const revenueTrendData = computed(() => {
   const successfulPayments = paymentsList.value
-    .filter(p => Number(p.status) === 1)
+    .filter(isSuccessPayment)
     .filter(p => p.paymentDate && new Date(p.paymentDate) >= cutoffDate.value)
     .sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate))
 
@@ -686,7 +690,7 @@ const recentActivities = computed(() => {
   const items = []
 
   // Payments — dòng chính: "Ghi nhận thanh toán X", dòng phụ: "Hóa đơn INV-XXXX • 21/01/2026"
-  paymentsList.value.slice(0, 6).forEach(p => {
+  paymentsList.value.filter(isSuccessPayment).slice(0, 6).forEach(p => {
     if (!p.paymentDate) return
     const amount = parseFloat(p.amount || 0)
     if (!amount) return

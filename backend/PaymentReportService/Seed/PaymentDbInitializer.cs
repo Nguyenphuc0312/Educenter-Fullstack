@@ -63,7 +63,7 @@ public static class PaymentDbInitializer
                     Id = Guid.Parse($"88888888-8888-8888-8888-{i:000000000000}"),
                     InvoiceId = invoice.Id,
                     Amount = Math.Min(500000 + i * 50000, invoice.TotalAmount),
-                    Method = (PaymentMethod)((i % 4) + 1),
+                    Method = (PaymentMethod)(((i - 1) % 3) + 2),
                     PaymentDate = now.AddDays(i),
                     Status = i % 7 == 0 ? PaymentStatus.Pending : PaymentStatus.Success,
                     Note = "Seed payment",
@@ -74,6 +74,7 @@ public static class PaymentDbInitializer
         }
 
         await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync("UPDATE PaymentTransactions SET Method = 2 WHERE Method = 1;");
 
         UserAccount Account(string username, string password, string name, string email, UserRole role, Guid? referenceId) => new()
         {

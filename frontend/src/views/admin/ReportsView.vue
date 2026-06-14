@@ -735,10 +735,12 @@ ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale,
 const loading = ref(false)
 const errorMsg = ref('')
 const activeTab = ref('overview')
-const activePeriod = ref('30d')
+const activePeriod = ref('all')
 const revenueTrendRange = ref('6m')
 
 const dateRange = computed(() => {
+  if (activePeriod.value === 'all') return null
+
   const now = new Date()
   const end = new Date(now)
   let start = new Date(now)
@@ -770,6 +772,7 @@ const dateRange = computed(() => {
 })
 
 const periodOptions = [
+  { value: 'all',   label: 'Tất cả' },
   { value: '7d',   label: '7 ngày' },
   { value: '30d',  label: '30 ngày' },
   { value: 'month', label: 'Tháng này' },
@@ -836,45 +839,54 @@ const filteredTuition = computed(() => {
   })
 })
 
-// Summary metrics computed from filtered lists
-// ============ Tổng hợp từ nhiều nguồn (fallback nếu API tổng quan thiếu) ============
-// Ưu tiên: 1) paymentsList thành công → 2) revenueByCourse/class tổng
+function isSuccessPayment(payment) {
+  return Number(payment?.status) === 1 || payment?.status === 'Success'
+}
+
+function isDebtInvoice(invoice) {
+  return [1, 2, 4, 'Unpaid', 'Partial', 'Overdue'].includes(invoice?.status)
+}
+
+function invoiceStatusKey(status) {
+  if (status === 'Unpaid') return 1
+  if (status === 'Partial') return 2
+  if (status === 'Paid') return 3
+  if (status === 'Overdue') return 4
+  return Number(status)
+}
+
+// Summary metrics: KPI tổng dùng PaymentReportService overview; bộ lọc chỉ dùng cho số trong kỳ.
 const totalPaidRevenue = computed(() => {
-  // Ưu tiên 1: từ filteredPayments (nếu có)
-  const fromPayments = filteredPayments.value
-    .filter(p => Number(p.status) === 1)
-    .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
-  if (fromPayments > 0) return fromPayments
-  // Fallback 2: tổng từ revenueByCourse + revenueByClass (khi API tổng quan thiếu)
+  if (typeof revenueOverview.value?.totalRevenue === 'number') {
+    return revenueOverview.value.totalRevenue
+  }
+
   const fromCourses = (revenueByCourse.value || []).reduce((sum, x) => sum + parseFloat(x.totalRevenue || 0), 0)
   const fromClasses = (revenueByClass.value || []).reduce((sum, x) => sum + parseFloat(x.totalRevenue || 0), 0)
   return Math.max(fromCourses, fromClasses)
 })
 
 const totalDebtRevenue = computed(() => {
-  // Ưu tiên 1: từ filteredTuition (nếu có)
-  const fromTuition = filteredTuition.value
-    .filter(t => t.status === 1 || t.status === 2 || t.status === 4) // Unpaid, Partial, Overdue
-    .reduce((sum, t) => sum + parseFloat(t.debtAmount || 0), 0)
-  if (fromTuition > 0) return fromTuition
-  // Fallback 2: tổng từ debtByStudent + debtByClass
+  if (typeof revenueOverview.value?.totalDebt === 'number') {
+    return revenueOverview.value.totalDebt
+  }
+
   const fromDebtStudent = (debtByStudent.value || []).reduce((sum, x) => sum + parseFloat(x.totalDebt || 0), 0)
   const fromDebtClass = (debtByClass.value || []).reduce((sum, x) => sum + parseFloat(x.totalDebt || 0), 0)
   return Math.max(fromDebtStudent, fromDebtClass)
 })
 
+const periodPaidRevenue = computed(() => {
+  if (activePeriod.value === 'all') return totalPaidRevenue.value
+  const paidInPeriod = filteredPayments.value
+    .filter(isSuccessPayment)
+    .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+  return Math.min(paidInPeriod, totalPaidRevenue.value)
+})
+
 const totalExpectedRevenue = computed(() => {
-  // Tổng phải thu = đã thu + còn nợ (cộng dồn từ các nguồn)
-  // Nếu có payment thì cộng thêm, fallback từ revenue tổng
   const paidBase = totalPaidRevenue.value
   const debtBase = totalDebtRevenue.value
-  // Nếu paid = 0 nhưng revenueByCourse có → dùng max
-  if (paidBase === 0 && debtBase === 0) {
-    const coursesTotal = (revenueByCourse.value || []).reduce((s, x) => s + parseFloat(x.totalRevenue || 0), 0)
-    const classesTotal = (revenueByClass.value || []).reduce((s, x) => s + parseFloat(x.totalRevenue || 0), 0)
-    const debtTotal = (debtByStudent.value || []).reduce((s, x) => s + parseFloat(x.totalDebt || 0), 0)
-    return Math.max(coursesTotal, classesTotal) + debtTotal
-  }
   return paidBase + debtBase
 })
 
@@ -885,14 +897,14 @@ const collectionRate = computed(() => {
 })
 
 const avgTransactionValue = computed(() => {
-  const payments = filteredPayments.value.filter(p => Number(p.status) === 1)
+  const payments = filteredPayments.value.filter(isSuccessPayment)
   if (payments.length === 0) return 0
-  return totalPaidRevenue.value / payments.length
+  return periodPaidRevenue.value / payments.length
 })
 
 // 1. Revenue trend (Line chart)
 const revenueTrendChartData = computed(() => {
-  const successPayments = [...filteredPayments.value].filter(p => p.status === 1)
+  const successPayments = [...filteredPayments.value].filter(isSuccessPayment)
   successPayments.sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate))
 
   const dailyMap = {}
@@ -994,17 +1006,17 @@ const topRevenueClass = computed(() => {
 
 // 4. Payment methods (Doughnut)
 const paymentMethodChartData = computed(() => {
-  // Method mapping: 1 Cash, 2 Bank Transfer, 3 Momo, 4 VNPay
-  const methods = { 1: 0, 2: 0, 3: 0, 4: 0 }
-  filteredPayments.value.filter(p => p.status === 1).forEach(p => {
-    methods[p.method] = (methods[p.method] || 0) + parseFloat(p.amount)
+  const methods = { BankTransfer: 0, Momo: 0, Vnpay: 0 }
+  filteredPayments.value.filter(isSuccessPayment).forEach(p => {
+    const key = Number(p.method) === 2 ? 'BankTransfer' : Number(p.method) === 3 ? 'Momo' : Number(p.method) === 4 ? 'Vnpay' : p.method
+    if (key in methods) methods[key] += parseFloat(p.amount || 0)
   })
 
   return {
-    labels: ['Tiền mặt', 'Chuyển khoản', 'Momo', 'VNPay'],
+    labels: ['Chuyển khoản', 'Momo', 'VNPay'],
     datasets: [{
-      data: [methods[1], methods[2], methods[3], methods[4]],
-      backgroundColor: ['#10b981', '#3b82f6', '#ec4899', '#f59e0b'],
+      data: [methods.BankTransfer, methods.Momo, methods.Vnpay],
+      backgroundColor: ['#3b82f6', '#ec4899', '#f59e0b'],
       borderWidth: 0
     }]
   }
@@ -1016,7 +1028,8 @@ const invoiceStatusChartData = computed(() => {
   // Status mapping: 1 Unpaid, 2 Partial, 3 Paid, 4 Overdue
   const counts = { 1: 0, 2: 0, 3: 0, 4: 0 }
   filteredTuition.value.forEach(inv => {
-    counts[inv.status] = (counts[inv.status] || 0) + 1
+    const key = invoiceStatusKey(inv.status)
+    counts[key] = (counts[key] || 0) + 1
   })
 
   return {
@@ -1152,22 +1165,32 @@ const doughnutChartOptions = doughnutOptions
 // ============ Summary cards (6 KPI hero) ============
 const summaryCards = computed(() => {
   const hasRevenue = totalPaidRevenue.value > 0
+  const hasPeriodRevenue = periodPaidRevenue.value > 0
   const hasDebt = totalDebtRevenue.value > 0
   const hasTuition = (totalPaidRevenue.value + totalDebtRevenue.value) > 0
   const hasPayments = filteredPayments.value.length > 0
   return [
     {
       key: 'total',
-      label: 'Tổng doanh thu',
+      label: 'Tổng doanh thu toàn hệ thống',
       value: hasRevenue ? formatVnd(totalPaidRevenue.value) : 'Chưa có dữ liệu',
       placeholder: !hasRevenue,
-      sub: 'Từ giao dịch thành công',
+      sub: 'Khớp với trang Tổng quan',
       icon: DollarCircleOutlined,
       iconColor: 'emerald'
     },
     {
+      key: 'period-revenue',
+      label: activePeriod.value === 'all' ? 'Doanh thu hiển thị' : 'Doanh thu trong kỳ',
+      value: hasPeriodRevenue ? formatVnd(periodPaidRevenue.value) : '0 đ',
+      placeholder: false,
+      sub: activePeriod.value === 'all' ? 'Tất cả dữ liệu hiện có' : `Theo bộ lọc ${activePeriodLabel.value}`,
+      icon: CheckCircleOutlined,
+      iconColor: 'indigo'
+    },
+    {
       key: 'debt',
-      label: 'Tổng công nợ',
+      label: 'Tổng công nợ hiện tại',
       value: hasDebt ? formatVnd(totalDebtRevenue.value) : '0 đ',
       placeholder: false,
       sub: hasDebt ? 'Hóa đơn còn nợ' : 'Không có khoản nợ',
@@ -1175,27 +1198,18 @@ const summaryCards = computed(() => {
       iconColor: 'rose'
     },
     {
-      key: 'paid',
-      label: 'Đã thu',
-      value: hasRevenue ? formatVnd(totalPaidRevenue.value) : 'Chưa có dữ liệu',
-      placeholder: !hasRevenue,
-      sub: 'Thực tế đã thu',
-      icon: CheckCircleOutlined,
-      iconColor: 'indigo'
-    },
-    {
       key: 'rate',
       label: 'Tỷ lệ thu học phí',
       value: hasTuition ? `${collectionRate.value}%` : 'Chưa có dữ liệu',
       placeholder: !hasTuition,
-      sub: hasTuition ? `${collectionRate.value}% đã thu / tổng phải thu` : 'Chờ dữ liệu',
+      sub: hasTuition ? `${formatVnd(totalPaidRevenue.value)} đã thu / ${formatVnd(totalExpectedRevenue.value)} phải thu` : 'Chờ dữ liệu',
       pill: hasTuition ? (collectionRate.value >= 80 ? { direction: 'up', text: 'Tốt' } : collectionRate.value >= 50 ? { direction: 'neutral', text: 'TB' } : { direction: 'down', text: 'Yếu' }) : null,
       icon: RiseOutlined,
       iconColor: 'sky'
     },
     {
       key: 'transactions',
-      label: 'Số giao dịch',
+      label: activePeriod.value === 'all' ? 'Số giao dịch' : 'Số giao dịch trong kỳ',
       value: hasPayments ? filteredPayments.value.length : 'Chưa có dữ liệu',
       placeholder: !hasPayments,
       sub: hasPayments ? `Trong ${activePeriodLabel.value}` : 'Chờ giao dịch',
@@ -1221,7 +1235,7 @@ const activePeriodLabel = computed(() => {
 })
 
 // ============ Debt tab KPIs ============
-const overdueInvoiceCount = computed(() => tuitionList.value.filter(t => Number(t.status) === 4).length)
+const overdueInvoiceCount = computed(() => tuitionList.value.filter(t => invoiceStatusKey(t.status) === 4).length)
 const totalDebtorsCount = computed(() => debtByStudent.value.filter(d => parseFloat(d.totalDebt || 0) > 0).length)
 
 const debtKpis = computed(() => [
@@ -1261,7 +1275,7 @@ const topDebtors = computed(() => {
 
 const recentTransactions = computed(() => {
   return [...paymentsList.value]
-    .filter(p => Number(p.status) === 1)
+    .filter(isSuccessPayment)
     .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))
     .slice(0, 5)
 })

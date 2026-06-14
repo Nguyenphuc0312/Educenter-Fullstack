@@ -165,6 +165,8 @@ public sealed class InvoiceService(IRepository<TuitionInvoice> invoices) : IInvo
     public async Task<TuitionInvoiceResponse> MarkOverdueAsync(Guid id, CancellationToken cancellationToken)
     {
         var entity = await invoices.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Invoice");
+        if (entity.DebtAmount <= 0 || entity.Status == InvoiceStatus.Paid) throw Conflict("Only invoices with remaining debt can be marked overdue");
+        if (entity.Status == InvoiceStatus.Overdue) return entity.ToResponse();
         entity.Status = InvoiceStatus.Overdue; entity.UpdatedAt = DateTime.UtcNow;
         await invoices.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();
@@ -306,13 +308,13 @@ public interface IReportService
     Task<DashboardResponse> DashboardAsync(CancellationToken cancellationToken);
 }
 
-public sealed class ReportService(IRepository<TuitionInvoice> invoices, IRepository<PaymentTransaction> payments) : IReportService
+public sealed class ReportService(IRepository<TuitionInvoice> invoices) : IReportService
 {
     public async Task<RevenueOverviewResponse> OverviewAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var revenue = await payments.Query().Where(x => x.Status == PaymentStatus.Success).SumAsync(x => x.Amount, cancellationToken);
+            var revenue = await invoices.Query().SumAsync(x => x.PaidAmount, cancellationToken);
             var debt = await invoices.Query().SumAsync(x => x.DebtAmount, cancellationToken);
             return new RevenueOverviewResponse(revenue, debt, await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Paid, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Unpaid, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Partial, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Overdue, cancellationToken));
         }

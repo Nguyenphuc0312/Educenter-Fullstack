@@ -52,21 +52,10 @@
         />
       </template>
 
-      <!-- Bulk actions -->
-      <template #bulkActions="{ selectedRowKeys, refresh }">
-        <a-button
-          size="small"
-          class="h-8 px-3 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 text-xs font-medium"
-          :disabled="!selectedRowKeys.length"
-          @click="triggerBulkOverdue(selectedRowKeys, refresh)"
-        >
-          Đánh dấu quá hạn
-        </a-button>
-      </template>
-
       <!-- Row Actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
+          v-if="canMarkOverdue(record)"
           class="rounded-lg px-3 py-2 text-xs"
           @click="triggerMarkOverdue(record.id, refresh)"
         >
@@ -263,6 +252,10 @@ function getProgressBarClass(record) {
   return 'bg-rose-400'
 }
 
+function canMarkOverdue(record) {
+  return Number(record?.debtAmount || 0) > 0 && record?.status !== 3 && record?.status !== 'Paid' && record?.status !== 4 && record?.status !== 'Overdue'
+}
+
 function shortCode(code) {
   if (!code) return '—'
   if (code.length <= 12) return code
@@ -275,17 +268,6 @@ function triggerMarkOverdue(id, refresh) {
   confirmActionCallback = async () => {
     await tuitionApi.markOverdue(id)
     message.success('Đã đánh dấu quá hạn')
-    refresh()
-  }
-  confirmOpen.value = true
-}
-
-function triggerBulkOverdue(ids, refresh) {
-  confirmTitle.value = `Đánh dấu ${ids.length} hóa đơn quá hạn?`
-  confirmMsg.value = `Trạng thái của ${ids.length} hóa đơn đã chọn sẽ được cập nhật thành Quá hạn.`
-  confirmActionCallback = async () => {
-    await tuitionApi.bulkMarkOverdue(ids)
-    message.success('Đã đánh dấu quá hạn hàng loạt')
     refresh()
   }
   confirmOpen.value = true
