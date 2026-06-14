@@ -9,7 +9,7 @@ namespace StudentAttendanceService.Controllers;
 [ApiController]
 [Route("api/students")]
 [Authorize]
-public sealed class StudentsController(IStudentService students, IEnrollmentService enrollments, IAttendanceService attendance, IResultService results, IStudentPortalService portal) : ControllerBase
+public sealed class StudentsController(IStudentService students, IAttendanceService attendance, IResultService results, IStudentPortalService portal) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<StudentResponse>>.Ok(await students.GetAllAsync(ct)));
@@ -71,7 +71,7 @@ public sealed class StudentsController(IStudentService students, IEnrollmentServ
     [HttpGet("{studentId:guid}/learning-profile")]
     public async Task<IActionResult> LearningProfile(Guid studentId, CancellationToken ct) => Ok(ApiResponse<LearningProfileResponse>.Ok(await portal.LearningProfileAsync(studentId, ct)));
     [HttpGet("{studentId:guid}/my-courses")]
-    public async Task<IActionResult> MyCourses(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<EnrollmentResponse>>.Ok(await enrollments.ByStudentAsync(studentId, ct)));
+    public async Task<IActionResult> MyCourses(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<MyCourseResponse>>.Ok(await portal.MyCoursesAsync(studentId, ct)));
     [HttpGet("{studentId:guid}/my-attendance")]
     public async Task<IActionResult> MyAttendance(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<AttendanceRecordResponse>>.Ok(await attendance.RecordsByStudentAsync(studentId, ct)));
     [HttpGet("{studentId:guid}/my-results")]

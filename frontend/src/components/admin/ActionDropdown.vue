@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center gap-1.5 justify-center">
+  <div class="flex items-center gap-1.5 justify-end">
     <!-- View Button (Optional, usually for details) -->
     <a-button
       v-if="showView"
@@ -30,11 +30,9 @@
         size="small"
         type="text"
         class="h-7 w-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
-        :title="moreTitle"
+        title="Thao tác khác"
       >
-        <template #icon>
-          <component :is="moreIconComponent" class="text-slate-600 dark:text-slate-300 text-[14px]" />
-        </template>
+        <template #icon><MoreOutlined class="text-slate-600 dark:text-slate-300 text-[14px]" /></template>
       </a-button>
       <template #overlay>
         <a-menu class="min-w-[140px] shadow-md rounded-lg p-1 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
@@ -116,18 +114,6 @@ const props = defineProps({
   actions: {
     type: Array,
     default: () => []
-  },
-  showMore: {
-    type: Boolean,
-    default: true
-  },
-  moreIcon: {
-    type: Object,
-    default: null
-  },
-  moreTitle: {
-    type: String,
-    default: 'Thao tác khác'
   }
 })
 
@@ -138,10 +124,8 @@ const computedActions = computed(() => {
   return props.actions
 })
 
-const moreIconComponent = computed(() => props.moreIcon || MoreOutlined)
-
 const hasMoreActions = computed(() => {
-  return props.showMore && (props.showDelete || props.actions.length > 0 || !!slots.extra)
+  return props.showDelete || props.actions.length > 0 || !!slots.extra
 })
 
 function handleActionClick(act) {

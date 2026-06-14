@@ -11,11 +11,6 @@
       status-field="status"
       :form-groups="formGroups"
       :filter-fn="customFilter"
-      :normalize-in="normalizeAccountIn"
-      :normalize-out="normalizeAccountOut"
-      :can-delete-record="canDeleteAccount"
-      :can-select-record="canSelectAccount"
-      :can-show-more-actions="canToggleAccount"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -71,14 +66,14 @@
       <!-- Row actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
-          v-if="canToggleAccount(record) && accountStatusValue(record.status) === 1"
+          v-if="record.status === 1"
           class="rounded-lg px-3 py-2 text-xs text-amber-600"
           @click="triggerLock(record.id, refresh)"
         >
           <LockOutlined /> Khóa tài khoản
         </a-menu-item>
         <a-menu-item
-          v-else-if="canToggleAccount(record)"
+          v-else
           class="rounded-lg px-3 py-2 text-xs text-blue-600"
           @click="triggerUnlock(record.id, refresh)"
         >
@@ -158,18 +153,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { LockOutlined, UnlockOutlined } from '@ant-design/icons-vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import ConfirmActionModal from '@/components/admin/ConfirmActionModal.vue'
 import { accountApi } from '@/api/accountApi'
 import { ACCOUNT_STATUS, USER_ROLE, toOptions } from '@/lib/constants'
-import { useAuthStore } from '@/stores/auth'
 
 const statusOptions = toOptions(ACCOUNT_STATUS, { 1: 'green', 2: 'red' })
-const auth = useAuthStore()
-const currentUserId = computed(() => auth.user?.id)
 
 // Custom filter states
 const filterRole = ref(undefined)
@@ -218,8 +210,8 @@ const formGroups = [
 ]
 
 function customFilter(item) {
-  const matchRole = filterRole.value === undefined || roleValue(item.role) === Number(filterRole.value)
-  const matchStatus = filterStatusValue.value === undefined || accountStatusValue(item.status) === Number(filterStatusValue.value)
+  const matchRole = filterRole.value === undefined || Number(item.role) === Number(filterRole.value)
+  const matchStatus = filterStatusValue.value === undefined || Number(item.status) === Number(filterStatusValue.value)
   return matchRole && matchStatus
 }
 
@@ -231,18 +223,18 @@ function resetCustomFilters() {
 // Role helpers
 function roleLabel(role) {
   const labels = { 1: 'Admin', 2: 'Giảng viên', 3: 'Học viên' }
-  return labels[roleValue(role)] || '—'
+  return labels[Number(role)] || '—'
 }
 
 function roleInitials(role) {
   const labels = { 1: 'A', 2: 'T', 3: 'S' }
-  return labels[roleValue(role)] || '?'
+  return labels[Number(role)] || '?'
 }
 
 const ROLE_COLORS = { 1: '#4f46e5', 2: '#059669', 3: '#0891b2' }
 
 function roleColor(role) {
-  return ROLE_COLORS[roleValue(role)] || '#6366f1'
+  return ROLE_COLORS[Number(role)] || '#6366f1'
 }
 
 const ROLE_BADGE_CLASSES = {
@@ -252,61 +244,12 @@ const ROLE_BADGE_CLASSES = {
 }
 
 function roleBadgeClass(role) {
-  return ROLE_BADGE_CLASSES[roleValue(role)] || 'bg-slate-100 text-slate-600'
+  return ROLE_BADGE_CLASSES[Number(role)] || 'bg-slate-100 text-slate-600'
 }
 
 function formatDate(value) {
   if (!value) return '—'
   return new Date(value).toLocaleDateString('vi-VN')
-}
-
-function roleValue(role) {
-  if (Number.isFinite(Number(role))) return Number(role)
-  return ({ Admin: 1, Teacher: 2, Student: 3 })[role] || 0
-}
-
-function accountStatusValue(status) {
-  if (Number.isFinite(Number(status))) return Number(status)
-  return ({ Active: 1, Locked: 2 })[status] || 0
-}
-
-function normalizeAccountIn(account) {
-  return {
-    ...account,
-    role: roleValue(account.role),
-    status: accountStatusValue(account.status),
-    referenceId: account.referenceId || ''
-  }
-}
-
-function normalizeAccountOut(account) {
-  const payload = {
-    ...account,
-    role: roleValue(account.role),
-    referenceId: account.referenceId || null
-  }
-  if (!payload.password) delete payload.password
-  return payload
-}
-
-function isAdminAccount(record) {
-  return roleValue(record.role) === 1
-}
-
-function isCurrentUser(record) {
-  return currentUserId.value && record.id === currentUserId.value
-}
-
-function canToggleAccount(record) {
-  return !isAdminAccount(record)
-}
-
-function canDeleteAccount(record) {
-  return !isAdminAccount(record) && !isCurrentUser(record)
-}
-
-function canSelectAccount(record) {
-  return canDeleteAccount(record)
 }
 
 // Confirm trigger helpers

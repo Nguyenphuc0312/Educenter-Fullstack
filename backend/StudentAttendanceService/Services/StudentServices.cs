@@ -4,7 +4,8 @@ using StudentAttendanceService.Entities;
 using StudentAttendanceService.Enums;
 using StudentAttendanceService.Mappings;
 using StudentAttendanceService.Repositories;
-using System.Net.Http.Json;
+using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace StudentAttendanceService.Services;
 
@@ -73,11 +74,53 @@ public interface IEnrollmentService
     Task<IReadOnlyList<EnrollmentResponse>> ByClassAsync(Guid classId, CancellationToken cancellationToken);
     Task<IReadOnlyList<StudentResponse>> ClassStudentsAsync(Guid classId, CancellationToken cancellationToken);
     Task<EnrollmentResponse> CreateAsync(CreateEnrollmentRequest request, CancellationToken cancellationToken);
+    Task<EnrollmentResponse> ConfirmAsync(Guid id, string? bearerToken, CancellationToken cancellationToken);
     Task<EnrollmentResponse> SetStatusAsync(Guid id, EnrollmentStatus status, CancellationToken cancellationToken);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
-public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IEnrollmentPaymentSyncService paymentSync) : IEnrollmentService
+public interface IClassCapacityClient
+{
+    Task IncreaseStudentCountAsync(Guid classId, string? bearerToken, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<Guid, int>> GetCourseTotalSessionsAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken);
+}
+
+public sealed class ClassCapacityClient(HttpClient httpClient) : IClassCapacityClient
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public async Task IncreaseStudentCountAsync(Guid classId, string? bearerToken, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/classes/{classId}/increase-student-count");
+        if (!string.IsNullOrWhiteSpace(bearerToken)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.IsSuccessStatusCode) return;
+
+        var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+        throw new AppException($"Cannot increase class student count. Course service returned {(int)response.StatusCode}: {detail}", StatusCodes.Status502BadGateway);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, int>> GetCourseTotalSessionsAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<Guid, int>();
+        foreach (var courseId in courseIds.Distinct())
+        {
+            using var response = await httpClient.GetAsync($"/api/courses/{courseId}", cancellationToken);
+            if (!response.IsSuccessStatusCode) continue;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var payload = await JsonSerializer.DeserializeAsync<ApiResponse<CourseSessionSnapshot>>(stream, JsonOptions, cancellationToken);
+            if (payload?.Data is { TotalSessions: > 0 } course) result[courseId] = course.TotalSessions;
+        }
+
+        return result;
+    }
+
+    private sealed record CourseSessionSnapshot(Guid Id, int TotalSessions);
+}
+
+public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IClassCapacityClient classCapacity) : IEnrollmentService
 {
     public async Task<IReadOnlyList<EnrollmentResponse>> GetAllAsync(CancellationToken cancellationToken) => await enrollments.Query().OrderByDescending(x => x.EnrolledAt).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<EnrollmentResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) => (await enrollments.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Enrollment")).ToResponse();
@@ -97,16 +140,27 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
         return entity.ToResponse();
     }
 
+    public async Task<EnrollmentResponse> ConfirmAsync(Guid id, string? bearerToken, CancellationToken cancellationToken)
+    {
+        var entity = await enrollments.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Enrollment");
+        if (entity.Status == EnrollmentStatus.Confirmed) return entity.ToResponse();
+
+        EnsureValidTransition(entity.Status, EnrollmentStatus.Confirmed);
+        await classCapacity.IncreaseStudentCountAsync(entity.ClassId, bearerToken, cancellationToken);
+
+        entity.Status = EnrollmentStatus.Confirmed;
+        entity.UpdatedAt = DateTime.UtcNow;
+        await enrollments.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
+    }
+
     public async Task<EnrollmentResponse> SetStatusAsync(Guid id, EnrollmentStatus status, CancellationToken cancellationToken)
     {
         var entity = await enrollments.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Enrollment");
+        EnsureValidTransition(entity.Status, status);
         entity.Status = status;
         entity.UpdatedAt = DateTime.UtcNow;
         await enrollments.SaveChangesAsync(cancellationToken);
-        if (status is EnrollmentStatus.Confirmed or EnrollmentStatus.Studying)
-        {
-            await paymentSync.SyncInvoiceAsync(entity, cancellationToken);
-        }
         return entity.ToResponse();
     }
 
@@ -119,60 +173,19 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
 
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
-}
-
-public interface IEnrollmentPaymentSyncService
-{
-    Task SyncInvoiceAsync(Enrollment enrollment, CancellationToken cancellationToken);
-}
-
-public sealed class EnrollmentPaymentSyncService(HttpClient httpClient, IConfiguration configuration, ILogger<EnrollmentPaymentSyncService> logger) : IEnrollmentPaymentSyncService
-{
-    public async Task SyncInvoiceAsync(Enrollment enrollment, CancellationToken cancellationToken)
+    private static void EnsureValidTransition(EnrollmentStatus current, EnrollmentStatus next)
     {
-        if (!configuration.GetValue("PaymentIntegration:Enabled", true)) return;
-
-        var baseUrl = configuration["PaymentIntegration:BaseUrl"]?.TrimEnd('/');
-        var internalKey = configuration["PaymentIntegration:InternalKey"];
-        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(internalKey))
+        if (current == next) return;
+        var valid = current switch
         {
-            logger.LogWarning("Payment integration is missing BaseUrl or InternalKey.");
-            return;
-        }
-
-        var totalAmount = configuration.GetValue("PaymentIntegration:DefaultTuitionAmount", 2500000m);
-        var dueDays = configuration.GetValue("PaymentIntegration:DefaultDueDays", 14);
-        var request = new
-        {
-            enrollmentId = enrollment.Id,
-            studentId = enrollment.StudentId,
-            studentNameSnapshot = enrollment.StudentNameSnapshot,
-            courseId = enrollment.CourseId,
-            courseNameSnapshot = enrollment.CourseNameSnapshot,
-            classId = enrollment.ClassId,
-            classNameSnapshot = enrollment.ClassNameSnapshot,
-            totalAmount,
-            dueDate = DateTime.UtcNow.AddDays(dueDays)
+            EnrollmentStatus.Pending => next is EnrollmentStatus.Confirmed or EnrollmentStatus.Cancelled,
+            EnrollmentStatus.Confirmed => next is EnrollmentStatus.Studying or EnrollmentStatus.Cancelled,
+            EnrollmentStatus.Studying => next is EnrollmentStatus.Completed or EnrollmentStatus.Cancelled,
+            EnrollmentStatus.Completed => false,
+            EnrollmentStatus.Cancelled => false,
+            _ => false
         };
-
-        using var message = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/tuition-invoices/from-enrollment")
-        {
-            Content = JsonContent.Create(request)
-        };
-        message.Headers.Add("X-EduCenter-Internal-Key", internalKey);
-
-        try
-        {
-            var response = await httpClient.SendAsync(message, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("Payment invoice sync failed with status {StatusCode}.", response.StatusCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Payment invoice sync failed. Enrollment status was still updated.");
-        }
+        if (!valid) throw Conflict($"Cannot change enrollment status from {current} to {next}");
     }
 }
 
@@ -323,10 +336,46 @@ public sealed class ResultService(IRepository<StudentResult> results, IRepositor
 public interface IStudentPortalService
 {
     Task<LearningProfileResponse> LearningProfileAsync(Guid studentId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<MyCourseResponse>> MyCoursesAsync(Guid studentId, CancellationToken cancellationToken);
 }
 
-public sealed class StudentPortalService(IStudentService students, IEnrollmentService enrollments, IResultService results, IAttendanceService attendance) : IStudentPortalService
+public sealed class StudentPortalService(IStudentService students, IEnrollmentService enrollments, IResultService results, IAttendanceService attendance, IRepository<AttendanceSession> sessions, IClassCapacityClient courseClient) : IStudentPortalService
 {
     public async Task<LearningProfileResponse> LearningProfileAsync(Guid studentId, CancellationToken cancellationToken) =>
-        new(await students.GetByIdAsync(studentId, cancellationToken), await enrollments.ByStudentAsync(studentId, cancellationToken), await results.ByStudentAsync(studentId, cancellationToken), await attendance.StudentSummaryAsync(studentId, cancellationToken));
+        new(await students.GetByIdAsync(studentId, cancellationToken), await MyCoursesAsync(studentId, cancellationToken), await results.ByStudentAsync(studentId, cancellationToken), await attendance.StudentSummaryAsync(studentId, cancellationToken));
+
+    public async Task<IReadOnlyList<MyCourseResponse>> MyCoursesAsync(Guid studentId, CancellationToken cancellationToken)
+    {
+        var courses = await enrollments.ByStudentAsync(studentId, cancellationToken);
+        if (courses.Count == 0) return courses.Select(ToMyCourseWithoutProgress).ToList();
+
+        var classIds = courses.Select(x => x.ClassId).Distinct().ToList();
+        var courseIds = courses.Select(x => x.CourseId).Distinct().ToList();
+        var totalSessionsByCourse = await courseClient.GetCourseTotalSessionsAsync(courseIds, cancellationToken);
+        var completedSessionsByClass = await sessions.Query()
+            .Where(x => classIds.Contains(x.ClassId))
+            .GroupBy(x => x.ClassId)
+            .Select(g => new { ClassId = g.Key, Completed = g.Count() })
+            .ToDictionaryAsync(x => x.ClassId, x => x.Completed, cancellationToken);
+
+        return courses.Select(course =>
+        {
+            var totalSessions = totalSessionsByCourse.GetValueOrDefault(course.CourseId);
+            var completedSessions = completedSessionsByClass.GetValueOrDefault(course.ClassId);
+            if (totalSessions > 0) completedSessions = Math.Min(completedSessions, totalSessions);
+            var canShowProgress = course.Status is EnrollmentStatus.Studying or EnrollmentStatus.Completed;
+            decimal? progressPercent = course.Status switch
+            {
+                EnrollmentStatus.Completed => 100m,
+                EnrollmentStatus.Studying when totalSessions > 0 => Math.Round((decimal)completedSessions / totalSessions * 100, 2),
+                EnrollmentStatus.Studying => 0m,
+                _ => null
+            };
+
+            return new MyCourseResponse(course.Id, course.StudentId, course.StudentNameSnapshot, course.CourseId, course.CourseNameSnapshot, course.ClassId, course.ClassNameSnapshot, course.EnrolledAt, course.Status, course.Note, course.CreatedAt, course.UpdatedAt, totalSessions, completedSessions, progressPercent, canShowProgress);
+        }).ToList();
+    }
+
+    private static MyCourseResponse ToMyCourseWithoutProgress(EnrollmentResponse course) =>
+        new(course.Id, course.StudentId, course.StudentNameSnapshot, course.CourseId, course.CourseNameSnapshot, course.ClassId, course.ClassNameSnapshot, course.EnrolledAt, course.Status, course.Note, course.CreatedAt, course.UpdatedAt, 0, 0, null, false);
 }

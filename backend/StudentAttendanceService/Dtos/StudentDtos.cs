@@ -5,6 +5,7 @@ namespace StudentAttendanceService.Dtos;
 
 public sealed record StudentResponse(Guid Id, string StudentCode, string FullName, string Email, string Phone, DateTime DateOfBirth, Gender Gender, string Address, string? AvatarUrl, StudentStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record EnrollmentResponse(Guid Id, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, DateTime EnrolledAt, EnrollmentStatus Status, string? Note, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record MyCourseResponse(Guid Id, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, DateTime EnrolledAt, EnrollmentStatus Status, string? Note, DateTime CreatedAt, DateTime UpdatedAt, int TotalSessions, int CompletedSessions, decimal? ProgressPercent, bool CanShowProgress);
 public sealed record AttendanceSessionResponse(Guid Id, Guid ClassId, string ClassNameSnapshot, Guid ScheduleId, int SessionNumber, DateTime AttendanceDate, string Topic, Guid CreatedByTeacherId, string CreatedByTeacherName, AttendanceSessionStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record AttendanceRecordResponse(Guid Id, Guid AttendanceSessionId, Guid StudentId, string StudentNameSnapshot, AttendanceStatus Status, string? Note, DateTime MarkedAt);
 public sealed record StudentResultResponse(Guid Id, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal MidtermScore, decimal FinalScore, decimal AverageScore, decimal AttendancePercent, ResultStatus ResultStatus, string? Feedback, Guid EvaluatedByTeacherId, string EvaluatedByTeacherName, DateTime EvaluatedAt, DateTime CreatedAt, DateTime UpdatedAt);
@@ -82,4 +83,4 @@ public class CreateStudentResultRequest
 public sealed class UpdateStudentResultRequest : CreateStudentResultRequest;
 
 public sealed record AttendanceSummaryResponse(Guid ScopeId, int TotalSessions, decimal AttendancePercent);
-public sealed record LearningProfileResponse(StudentResponse Student, IReadOnlyList<EnrollmentResponse> Courses, IReadOnlyList<StudentResultResponse> Results, AttendanceSummaryResponse AttendanceSummary);
+public sealed record LearningProfileResponse(StudentResponse Student, IReadOnlyList<MyCourseResponse> Courses, IReadOnlyList<StudentResultResponse> Results, AttendanceSummaryResponse AttendanceSummary);

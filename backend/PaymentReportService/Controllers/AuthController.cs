@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PaymentReportService.Dtos;
-using PaymentReportService.Enums;
 using PaymentReportService.Services;
 using System.Security.Claims;
 
@@ -17,12 +16,7 @@ public sealed class AuthController(IAuthService auth, IAccountService accounts) 
 
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register(CreateAccountRequest request, CancellationToken ct)
-    {
-        request.Role = UserRole.Student;
-        request.ReferenceId = null;
-        return Ok(ApiResponse<AccountResponse>.Ok(await auth.RegisterAsync(request, ct), "Registered"));
-    }
+    public async Task<IActionResult> Register(CreateAccountRequest request, CancellationToken ct) => Ok(ApiResponse<AccountResponse>.Ok(await auth.RegisterAsync(request, ct), "Registered"));
 
     [HttpGet("me")]
     [Authorize]

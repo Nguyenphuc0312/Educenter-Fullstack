@@ -1,91 +1,267 @@
 <template>
   <div class="space-y-6">
-    <PageHeader title="Học phí & Hóa đơn" subtitle="Theo dõi hóa đơn học phí, số tiền đã thanh toán và công nợ còn lại.">
+    <PageHeader
+      title="Học phí & Hóa đơn"
+      subtitle="Quản lý giao dịch, thanh toán công nợ và tra cứu biên lai điện tử."
+    >
       <template #actions>
-        <button class="student-secondary-btn" type="button" @click="loadData">Làm mới</button>
+        <button
+          class="student-btn-secondary disabled:opacity-70 disabled:cursor-not-allowed"
+          @click="refreshData"
+          :disabled="loading"
+        >
+          <LoadingSpinner v-if="loading" size="sm" class="text-current" />
+          <svg
+            v-else
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          Làm mới
+        </button>
+
+        <button
+          class="student-btn-primary disabled:opacity-70 disabled:cursor-not-allowed"
+          @click="exportReport"
+          :disabled="isExporting || loading"
+        >
+          <LoadingSpinner v-if="isExporting" size="sm" class="!text-white" />
+          <svg
+            v-else
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+          Xuất báo cáo
+        </button>
       </template>
     </PageHeader>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div class="student-mini-stat"><span>Tổng học phí</span><strong>{{ formatVnd(summary.total) }}</strong></div>
-      <div class="student-mini-stat"><span>Đã thanh toán</span><strong>{{ formatVnd(summary.paid) }}</strong></div>
-      <div class="student-mini-stat"><span>Còn phải đóng</span><strong>{{ formatVnd(summary.debt) }}</strong></div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col justify-center transition-all hover:border-slate-300">
+        <span class="text-slate-500 text-sm font-semibold uppercase tracking-wider mb-1">Tổng học phí đã phát sinh</span>
+        <strong class="text-2xl text-slate-800 font-bold">{{ formatVnd(summary.total) }}</strong>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col justify-center transition-all hover:border-emerald-200">
+        <span class="text-emerald-600 text-sm font-semibold uppercase tracking-wider mb-1">Đã thanh toán</span>
+        <strong class="text-2xl text-emerald-700 font-bold">{{ formatVnd(summary.paid) }}</strong>
+      </div>
+      <div class="bg-red-50 rounded-xl p-5 border border-red-100 shadow-sm flex flex-col justify-center relative overflow-hidden transition-all hover:shadow-md">
+        <div class="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-red-100 to-transparent"></div>
+        <span class="text-red-600 text-sm font-semibold uppercase tracking-wider mb-1 relative z-10">Tổng công nợ hiện tại</span>
+        <strong class="text-3xl text-red-600 font-black relative z-10">{{ formatVnd(summary.debt) }}</strong>
+      </div>
     </div>
 
-    <LoadingSpinner v-if="loading" size="lg" class="py-20" />
-    <div v-else-if="error" class="student-empty">{{ error }}</div>
-    <div v-else-if="invoices.length === 0" class="student-card student-empty">Chưa có hóa đơn học phí.</div>
-    <div v-else class="space-y-4">
-      <article v-for="invoice in invoices" :key="invoice.id" class="student-invoice-row">
-        <div class="min-w-0">
-          <div class="flex flex-wrap items-center gap-2">
-            <h3>{{ invoice.courseNameSnapshot }}</h3>
-            <span :class="statusClass(invoice.status)">{{ statusText(invoice.status) }}</span>
-          </div>
-          <p>{{ invoice.classNameSnapshot }} - Mã hóa đơn {{ invoice.invoiceCode }}</p>
-          <p>Hạn thanh toán: {{ formatDate(invoice.dueDate) }}</p>
-          <button
-            v-if="getRemaining(invoice) > 0"
-            type="button"
-            class="student-secondary-btn mt-3"
-            @click="openPaymentModal(invoice)"
-          >
-            Thanh toán học phí
-          </button>
-        </div>
-        <div class="grid grid-cols-3 gap-3 w-full lg:w-[520px]">
-          <div class="student-mini-stat"><span>Tổng</span><strong class="!text-base">{{ formatVnd(invoice.totalAmount) }}</strong></div>
-          <div class="student-mini-stat"><span>Đã đóng</span><strong class="!text-base">{{ formatVnd(invoice.paidAmount) }}</strong></div>
-          <div class="student-mini-stat"><span>Còn nợ</span><strong class="!text-base">{{ formatVnd(invoice.debtAmount) }}</strong></div>
-        </div>
-      </article>
-    </div>
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="border-b border-slate-200 px-6 pt-4">
+        <a-tabs v-model:activeKey="activeTab">
+          <a-tab-pane key="all" tab="Tất cả hóa đơn" />
+          <a-tab-pane key="unpaid" tab="Cần thanh toán" />
+          <a-tab-pane key="paid" tab="Đã hoàn tất" />
+        </a-tabs>
+      </div>
+
+      <div class="p-0">
+        <a-table
+          :data-source="filteredInvoices"
+          :columns="columns"
+          :loading="loading"
+          row-key="id"
+          :pagination="{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng số ${total} hóa đơn` }"
+          :scroll="{ x: 1000 }"
+          class="enterprise-table"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'invoiceInfo'">
+              <div class="font-medium text-slate-800">{{ record.invoiceCode }}</div>
+              <div class="text-xs text-slate-500 mt-0.5">
+                Hạn: <span :class="isOverdue(record.dueDate, record.status) ? 'text-red-500 font-bold' : ''">{{ formatDate(record.dueDate) }}</span>
+              </div>
+            </template>
+
+            <template v-else-if="column.key === 'courseInfo'">
+              <div class="font-semibold text-slate-800 line-clamp-1" :title="record.courseNameSnapshot">
+                {{ record.courseNameSnapshot }}
+              </div>
+              <div class="text-sm text-slate-500">{{ record.classNameSnapshot }}</div>
+            </template>
+
+            <template v-else-if="column.key === 'amounts'">
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-slate-500">Tổng:</span>
+                <span class="font-medium text-slate-800">{{ formatVnd(record.totalAmount) }}</span>
+              </div>
+              <div class="flex justify-between text-sm border-t border-slate-100 pt-1">
+                <span class="text-slate-500">Còn nợ:</span>
+                <span :class="record.debtAmount > 0 ? 'font-bold text-red-600' : 'font-medium text-emerald-600'">
+                  {{ formatVnd(record.debtAmount) }}
+                </span>
+              </div>
+            </template>
+
+            <template v-else-if="column.key === 'status'">
+              <span :class="statusBadge(record.status, record.dueDate)">
+                {{ statusText(record.status, record.dueDate) }}
+              </span>
+            </template>
+
+            <template v-else-if="column.key === 'actions'">
+              <div class="flex flex-nowrap items-center gap-2 justify-end min-w-max">
+                <button
+                  v-if="record.debtAmount > 0"
+                  class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors shadow-sm whitespace-nowrap active:scale-95"
+                  @click="openPaymentModal(record)"
+                >
+                  Thanh toán
+                </button>
+                <button
+                  v-if="record.paidAmount > 0"
+                  class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded transition-colors whitespace-nowrap active:scale-95 flex items-center gap-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                  @click="downloadReceipt(record)"
+                  :disabled="record.isDownloading"
+                >
+                  <LoadingSpinner v-if="record.isDownloading" size="xs" class="text-slate-500" />
+                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Tải biên lai
+                </button>
+              </div>
+            </template>
+          </template>
+          <template #emptyText>
+             <a-empty description="Không tìm thấy hóa đơn nào." />
+          </template>
+        </a-table>
+      </div>
+    </section>
 
     <a-modal
-      v-model:open="paymentModalOpen"
-      width="520px"
+      v-model:open="isPaymentModalVisible"
+      title="Thanh toán hóa đơn dịch vụ"
+      centered
+      width="500px"
       :footer="null"
-      :destroy-on-close="true"
-      :centered="true"
+      destroyOnClose
     >
-      <template #title>
-        <div class="text-sm font-bold pb-3 border-b border-slate-200">Thanh toán học phí</div>
-      </template>
+      <div v-if="selectedInvoice" class="py-2">
+        <div v-if="paymentStep === 1">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+            <div class="flex justify-between items-center mb-3 pb-3 border-b border-slate-200">
+              <span class="text-slate-500">Mã giao dịch</span>
+              <strong class="text-slate-800 font-mono">{{ selectedInvoice.invoiceCode }}</strong>
+            </div>
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-slate-500 w-1/3">Nội dung</span>
+              <span class="text-slate-800 font-medium text-right w-2/3">{{ selectedInvoice.courseNameSnapshot }} - {{ selectedInvoice.classNameSnapshot }}</span>
+            </div>
+            <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
+              <span class="text-base font-semibold text-slate-800">Số tiền cần thanh toán</span>
+              <span class="text-2xl font-black text-blue-600">{{ formatVnd(selectedInvoice.debtAmount) }}</span>
+            </div>
+          </div>
 
-      <div v-if="selectedInvoice" class="mt-4 space-y-4">
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <div class="text-sm font-semibold text-slate-900">{{ selectedInvoice.courseNameSnapshot }}</div>
-          <div class="text-xs text-slate-500 mt-1">{{ selectedInvoice.invoiceCode }} - Còn nợ {{ formatVnd(getRemaining(selectedInvoice)) }}</div>
+          <h3 class="font-bold text-slate-800 mb-3">Chọn phương thức thanh toán</h3>
+          <div class="space-y-3 mb-6">
+            <label
+              class="flex items-center p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+              :class="{ 'border-blue-500 ring-1 ring-blue-500 bg-blue-50': paymentMethod === 'vnpay' }"
+            >
+              <input type="radio" v-model="paymentMethod" value="vnpay" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+              <span class="ml-3 font-medium text-slate-800">Thanh toán qua VNPAY</span>
+              <img src="https://vnpay.vn/s1/vnpay/logo.svg" alt="VNPAY" class="ml-auto h-6" />
+            </label>
+
+            <label
+              class="flex items-center p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+              :class="{ 'border-blue-500 ring-1 ring-blue-500 bg-blue-50': paymentMethod === 'momo' }"
+            >
+              <input type="radio" v-model="paymentMethod" value="momo" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+              <span class="ml-3 font-medium text-slate-800">Ví điện tử MoMo</span>
+              <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" class="ml-auto h-6 object-contain" />
+            </label>
+
+            <label
+              class="flex items-center p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+              :class="{ 'border-blue-500 ring-1 ring-blue-500 bg-blue-50': paymentMethod === 'vietqr' }"
+            >
+              <input type="radio" v-model="paymentMethod" value="vietqr" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+              <span class="ml-3 font-medium text-slate-800">Chuyển khoản / VietQR</span>
+              <svg class="ml-auto h-6 w-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+            </label>
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              class="flex-1 py-2.5 bg-white border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+              @click="isPaymentModalVisible = false"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              class="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              :disabled="isProcessing"
+              @click="generateQR"
+            >
+              <LoadingSpinner v-if="isProcessing" size="sm" class="!text-white" />
+              <span v-else>Tạo mã QR</span>
+            </button>
+          </div>
         </div>
 
-        <a-form ref="paymentFormRef" :model="paymentForm" layout="vertical">
-          <a-form-item label="Mức thanh toán" name="percent">
-            <a-radio-group v-model:value="paymentForm.percent" class="w-full" @change="syncAmountFromPercent">
-              <a-radio-button v-for="option in paymentPercentOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </a-radio-button>
-            </a-radio-group>
-          </a-form-item>
-          <a-form-item label="Số tiền thanh toán" name="amount" :rules="[{ required: true, message: 'Vui lòng chọn số tiền' }]">
-            <a-input-number v-model:value="paymentForm.amount" class="w-full" :min="getMinimumPayment(selectedInvoice)" :max="getRemaining(selectedInvoice)" :disabled="true" />
-          </a-form-item>
-          <a-form-item label="Phương thức" name="method">
-            <a-select v-model:value="paymentForm.method">
-              <a-select-option v-for="option in methodOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="Ghi chú" name="note">
-            <a-textarea v-model:value="paymentForm.note" :rows="3" :placeholder="Number(paymentForm.method) === 1 ? 'Ví dụ: Em sẽ đóng tiền mặt tại trung tâm...' : 'Ghi chú giao dịch nếu có...'" />
-          </a-form-item>
-        </a-form>
+        <div v-else-if="paymentStep === 2" class="text-center py-4">
+          <h3 class="text-lg font-bold text-slate-800 mb-2">Quét mã để thanh toán</h3>
+          <p class="text-sm text-slate-500 mb-6">
+            Mở ứng dụng <strong class="text-slate-700">{{ paymentMethodName }}</strong> hoặc ứng dụng ngân hàng để quét mã QR dưới đây.
+          </p>
 
-        <div class="flex justify-end gap-2 pt-4 border-t border-slate-200">
-          <button type="button" class="student-secondary-btn" :disabled="paymentSaving" @click="paymentModalOpen = false">Đóng</button>
-          <button type="button" class="student-secondary-btn" :disabled="paymentSaving" @click="submitPaymentRequest">
-            {{ paymentSaving ? 'Đang xử lý...' : (Number(paymentForm.method) === 1 ? 'Gửi xác nhận tiền mặt' : 'Thanh toán ngay') }}
-          </button>
+          <div class="bg-white p-4 rounded-2xl border-2 border-dashed border-blue-200 inline-block mb-6 relative">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg" alt="QR Code" class="w-48 h-48 mx-auto" />
+            <div class="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl" v-if="isCheckingPayment">
+              <div class="flex flex-col items-center gap-2">
+                <LoadingSpinner size="md" class="text-blue-600" />
+                <span class="text-sm font-semibold text-blue-600 animate-pulse">Đang chờ thanh toán...</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm text-amber-700 text-left mb-6">
+            <p class="font-medium">Lưu ý quan trọng:</p>
+            <ul class="list-disc pl-5 mt-1 space-y-1">
+              <li>Không thay đổi nội dung chuyển khoản.</li>
+              <li>Hệ thống sẽ tự động cập nhật sau khi nhận được tiền (tối đa 5 phút).</li>
+            </ul>
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              class="flex-1 py-2.5 bg-white border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+              @click="paymentStep = 1"
+            >
+              Quay lại chọn cách khác
+            </button>
+            <button
+              class="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors flex justify-center items-center"
+              @click="simulatePaymentSuccess"
+            >
+              Đã thanh toán xong
+            </button>
+          </div>
         </div>
       </div>
     </a-modal>
@@ -93,131 +269,244 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import { message } from 'ant-design-vue'
-import PageHeader from '@/components/ui/PageHeader.vue'
-import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
-import { tuitionApi } from '@/api/tuitionApi'
-import { paymentApi } from '@/api/paymentApi'
-import { useAuthStore } from '@/stores/auth'
-import { PAYMENT_METHOD, toOptions } from '@/lib/constants'
-import { formatDate, formatVnd } from '@/lib/formatters'
+import { computed, onMounted, ref } from "vue";
+import { message } from "ant-design-vue";
+import dayjs from "dayjs";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import LoadingSpinner from "@/components/ui/LoadingSpinner.vue";
+import { tuitionApi } from "@/api/tuitionApi";
+import { useAuthStore } from "@/stores/auth";
+import { formatDate, formatVnd } from "@/lib/formatters";
+import { downloadExcelReport, reportFilename } from "@/lib/exportDocuments";
 
-const auth = useAuthStore()
-const invoices = ref([])
-const loading = ref(true)
-const error = ref('')
-const paymentModalOpen = ref(false)
-const paymentSaving = ref(false)
-const selectedInvoice = ref(null)
-const paymentFormRef = ref()
-const methodOptions = toOptions(PAYMENT_METHOD)
-const invoiceStatusNameToValue = { Unpaid: 1, Partial: 2, Paid: 3, Overdue: 4 }
-const paymentPercentOptions = [
-  { value: 25, label: '25%' },
-  { value: 50, label: '50%' },
-  { value: 75, label: '75%' },
-  { value: 100, label: 'Thanh toán full' }
-]
-const paymentForm = reactive({
-  amount: 0,
-  percent: 100,
-  method: 2,
-  note: ''
-})
+const auth = useAuthStore();
+const invoices = ref([]);
+const loading = ref(false);
+const error = ref("");
+const isExporting = ref(false);
 
-const summary = computed(() => invoices.value.reduce((sum, item) => ({
-  total: sum.total + Number(item.totalAmount || 0),
-  paid: sum.paid + Number(item.paidAmount || 0),
-  debt: sum.debt + Number(item.debtAmount || 0),
-}), { total: 0, paid: 0, debt: 0 }))
+// Table State
+const activeTab = ref("all");
+const columns = [
+  { title: "Hóa đơn", key: "invoiceInfo", width: 160 },
+  { title: "Nội dung đào tạo", key: "courseInfo" },
+  { title: "Giá trị / Công nợ", key: "amounts", width: 220 },
+  { title: "Trạng thái", key: "status", width: 150 },
+  { title: "Thao tác", key: "actions", align: "right", width: 200 },
+];
 
-onMounted(loadData)
+// Modal State
+const isPaymentModalVisible = ref(false);
+const selectedInvoice = ref(null);
+const paymentMethod = ref("vnpay");
+const isProcessing = ref(false);
+const paymentStep = ref(1); 
+const isCheckingPayment = ref(false);
 
+// Tên phương thức hiển thị
+const paymentMethodName = computed(() => {
+  const methods = {
+    vnpay: "VNPAY",
+    momo: "MoMo",
+    vietqr: "Ngân hàng (VietQR)",
+  };
+  return methods[paymentMethod.value] || "Thanh toán";
+});
+
+// Lọc hóa đơn theo tab
+const filteredInvoices = computed(() => {
+  if (activeTab.value === "unpaid") return invoices.value.filter((i) => i.debtAmount > 0);
+  if (activeTab.value === "paid") return invoices.value.filter((i) => i.debtAmount === 0);
+  return invoices.value;
+});
+
+// Tóm tắt công nợ
+const summary = computed(() =>
+  invoices.value.reduce(
+    (sum, item) => ({
+      total: sum.total + Number(item.totalAmount || 0),
+      paid: sum.paid + Number(item.paidAmount || 0),
+      debt: sum.debt + Number(item.debtAmount || 0),
+    }),
+    { total: 0, paid: 0, debt: 0 },
+  ),
+);
+
+onMounted(() => loadData());
+
+// Lấy dữ liệu 
 async function loadData() {
-  loading.value = true
-  error.value = ''
+  loading.value = true;
+  error.value = "";
   try {
-    invoices.value = auth.user?.referenceId ? await tuitionApi.getByStudent(auth.user.referenceId) : []
+    invoices.value = auth.user?.referenceId ? await tuitionApi.getByStudent(auth.user.referenceId) : [];
   } catch (err) {
-    error.value = err.message || 'Không tải được hóa đơn học phí.'
+    error.value = err.message || "Hệ thống không thể kết nối dữ liệu tài chính lúc này.";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-function getRemaining(invoice) {
-  return Math.max(Number(invoice?.debtAmount ?? ((invoice?.totalAmount || 0) - (invoice?.paidAmount || 0))), 0)
+// Nút "Làm mới"
+async function refreshData() {
+  await loadData();
+  message.success("Dữ liệu đã được làm mới!");
 }
 
-function getMinimumPayment(invoice) {
-  return Math.ceil(getRemaining(invoice) * 0.25)
-}
+// Nút "Xuất báo cáo"
+async function exportReport() {
+  if (filteredInvoices.value.length === 0) {
+    message.warning("Không có dữ liệu hóa đơn trong danh sách để xuất báo cáo.");
+    return;
+  }
 
-function getAmountByPercent(invoice, percent) {
-  const remaining = getRemaining(invoice)
-  if (Number(percent) === 100) return remaining
-  return Math.ceil(remaining * Number(percent) / 100)
-}
+  isExporting.value = true;
+  message.loading({ content: "Đang tạo file báo cáo học phí...", key: "exportReport" });
 
-function invoiceStatusValue(status) {
-  return Number.isFinite(Number(status)) ? Number(status) : invoiceStatusNameToValue[status] || 0
+  try {
+    downloadExcelReport({
+      title: "Báo cáo học phí & hóa đơn",
+      subtitle: "Tổng hợp công nợ, thanh toán và trạng thái hóa đơn của học viên.",
+      filename: reportFilename("bao-cao-hoc-phi-hoa-don"),
+      user: auth.user,
+      summary: [
+        { label: "Tổng học phí", value: formatVnd(summary.value.total) },
+        { label: "Đã thanh toán", value: formatVnd(summary.value.paid) },
+        { label: "Còn nợ", value: formatVnd(summary.value.debt) },
+        { label: "Số hóa đơn", value: filteredInvoices.value.length },
+      ],
+      columns: [
+        { label: "Mã hóa đơn", value: (x) => x.invoiceCode },
+        { label: "Khóa học", value: (x) => x.courseNameSnapshot },
+        { label: "Lớp", value: (x) => x.classNameSnapshot },
+        { label: "Hạn thanh toán", value: (x) => formatDate(x.dueDate) },
+        { label: "Tổng tiền", value: (x) => formatVnd(x.totalAmount) },
+        { label: "Đã trả", value: (x) => formatVnd(x.paidAmount) },
+        { label: "Còn nợ", value: (x) => formatVnd(x.debtAmount) },
+        { label: "Trạng thái", value: (x) => statusText(x.status, x.dueDate) },
+      ],
+      rows: filteredInvoices.value,
+      notes: [
+        "File này được tạo từ dữ liệu hóa đơn đang hiển thị trên hệ thống.",
+        "Có thể mở file bằng Excel hoặc LibreOffice để lọc, thống kê và in khi cần nộp hoặc lưu trữ.",
+      ],
+    });
+    message.success({ content: "Xuất báo cáo học phí thành công.", key: "exportReport", duration: 3 });
+  } catch (err) {
+    message.error({ content: "Đã xảy ra lỗi khi tạo báo cáo. Vui lòng thử lại sau.", key: "exportReport", duration: 3 });
+  } finally {
+    isExporting.value = false;
+  }
 }
+// Nút "Tải biên lai" 
+async function downloadReceipt(invoice) {
+  invoice.isDownloading = true;
+  message.loading({ content: `Đang tạo biên lai cho ${invoice.invoiceCode}...`, key: `pdf-${invoice.id}` });
 
-function statusText(status) {
-  return ({ 1: 'Chưa thanh toán', 2: 'Thanh toán một phần', 3: 'Đã thanh toán', 4: 'Quá hạn' })[invoiceStatusValue(status)] || status
+  try {
+    downloadExcelReport({
+      title: "Biên lai / Hóa đơn học phí",
+      subtitle: "Chứng từ thanh toán điện tử tạo từ EduCenter.",
+      filename: reportFilename(`bien-lai-${invoice.invoiceCode || invoice.id}`),
+      user: auth.user,
+      summary: [
+        { label: "Mã hóa đơn", value: invoice.invoiceCode || invoice.id },
+        { label: "Trạng thái", value: statusText(invoice.status, invoice.dueDate) },
+        { label: "Đã thanh toán", value: formatVnd(invoice.paidAmount) },
+        { label: "Còn nợ", value: formatVnd(invoice.debtAmount) },
+      ],
+      columns: [
+        { label: "Nội dung", value: (x) => x.label },
+        { label: "Thông tin", value: (x) => x.value },
+      ],
+      rows: [
+        { label: "Học viên", value: auth.user?.fullName || auth.user?.username || "-" },
+        { label: "Khóa học", value: invoice.courseNameSnapshot || "-" },
+        { label: "Lớp", value: invoice.classNameSnapshot || "-" },
+        { label: "Ngày hạn", value: formatDate(invoice.dueDate) },
+        { label: "Tổng tiền", value: formatVnd(invoice.totalAmount) },
+        { label: "Đã thanh toán", value: formatVnd(invoice.paidAmount) },
+        { label: "Còn nợ", value: formatVnd(invoice.debtAmount) },
+        { label: "Phương thức", value: invoice.paymentMethod || "Theo giao dịch hệ thống" },
+      ],
+      notes: [
+        "File Excel này có thể mở bằng Excel hoặc LibreOffice để lọc, thống kê và in khi cần.",
+        "Thông tin được tạo từ dữ liệu hóa đơn hiện có của học viên.",
+      ],
+    });
+    message.success({ content: `Đã tải biên lai Excel: ${invoice.invoiceCode}.xls`, key: `pdf-${invoice.id}`, duration: 2 });
+  } catch (err) {
+    message.error({ content: `Không thể tải biên lai cho hóa đơn ${invoice.invoiceCode}.`, key: `pdf-${invoice.id}`, duration: 2 });
+  } finally {
+    invoice.isDownloading = false;
+  }
 }
-
-function statusClass(status) {
-  const base = 'student-status-pill '
-  const value = invoiceStatusValue(status)
-  if (value === 3) return base + 'is-green'
-  if (value === 2) return base + 'is-blue'
-  if (value === 4) return base + 'is-red'
-  return base + 'is-muted'
-}
-
+// Thanh toán - Hiển thị Modal
 function openPaymentModal(invoice) {
-  selectedInvoice.value = invoice
-  paymentForm.percent = 100
-  paymentForm.amount = getAmountByPercent(invoice, paymentForm.percent)
-  paymentForm.method = 2
-  paymentForm.note = ''
-  paymentModalOpen.value = true
+  selectedInvoice.value = invoice;
+  paymentMethod.value = "vnpay";
+  paymentStep.value = 1;
+  isPaymentModalVisible.value = true;
+  isCheckingPayment.value = false;
 }
 
-function syncAmountFromPercent() {
-  if (!selectedInvoice.value) return
-  paymentForm.amount = getAmountByPercent(selectedInvoice.value, paymentForm.percent)
-}
-
-async function submitPaymentRequest() {
-  if (!selectedInvoice.value) return
+// Thanh toán - Tạo mã QR
+async function generateQR() {
+  isProcessing.value = true;
   try {
-    await paymentFormRef.value?.validate()
-    if (Number(paymentForm.amount) < getMinimumPayment(selectedInvoice.value) || Number(paymentForm.amount) > getRemaining(selectedInvoice.value)) {
-      message.error('Số tiền thanh toán không hợp lệ')
-      return
-    }
-    paymentSaving.value = true
-    const isCash = Number(paymentForm.method) === 1
-    await paymentApi.createStudentRequest({
-      invoiceId: selectedInvoice.value.id,
-      amount: Number(paymentForm.amount),
-      method: paymentForm.method,
-      paymentDate: new Date().toISOString(),
-      status: isCash ? 2 : 1,
-      createdBy: auth.user?.username || 'student',
-      note: paymentForm.note || null
-    })
-    message.success(isCash ? 'Đã gửi yêu cầu tiền mặt cho admin xác nhận' : 'Thanh toán thành công')
-    paymentModalOpen.value = false
-    await loadData()
-  } catch (err) {
-    if (err?.errorFields) return
-    message.error(err.message || 'Không thể xử lý thanh toán')
+    await new Promise((resolve) => setTimeout(resolve, 800)); 
+    paymentStep.value = 2;
+    isCheckingPayment.value = true;
+  } catch (error) {
+    message.error("Không thể tạo mã QR. Vui lòng kiểm tra lại kết nối.");
   } finally {
-    paymentSaving.value = false
+    isProcessing.value = false;
   }
+}
+
+// Thanh toán - Giả lập xác nhận thành công
+function simulatePaymentSuccess() {
+  message.success(`Thanh toán thành công cho hóa đơn ${selectedInvoice.value.invoiceCode}`);
+  isPaymentModalVisible.value = false;
+  loadData(); 
+}
+
+// Helpers giao diện
+function isOverdue(dueDate, status) {
+  if (status === "Paid") return false;
+  return dayjs(dueDate).isBefore(dayjs(), "day");
+}
+
+function statusText(status, dueDate) {
+  if (status !== "Paid" && isOverdue(dueDate, status)) return "Quá hạn";
+  return ({ Paid: "Đã hoàn tất", Partial: "Thanh toán 1 phần", Unpaid: "Chưa thanh toán" }[status] || status);
+}
+
+function statusBadge(status, dueDate) {
+  const base = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ";
+  if (status === "Paid") return base + "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status !== "Paid" && isOverdue(dueDate, status)) return base + "bg-red-50 text-red-700 border-red-200";
+  if (status === "Partial") return base + "bg-amber-50 text-amber-700 border-amber-200";
+  return base + "bg-slate-50 text-slate-700 border-slate-300"; 
 }
 </script>
+
+<style scoped>
+:deep(.enterprise-table .ant-table-thead > tr > th) {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.025em;
+  padding: 12px 16px;
+}
+:deep(.enterprise-table .ant-table-tbody > tr > td) {
+  padding: 16px;
+  vertical-align: top;
+  border-bottom: 1px solid #f1f5f9;
+}
+:deep(.ant-tabs-nav) {
+  margin-bottom: 0 !important;
+}
+</style>

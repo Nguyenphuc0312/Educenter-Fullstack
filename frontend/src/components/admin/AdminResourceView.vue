@@ -137,7 +137,7 @@
     <!-- Bulk actions alert -->
     <transition name="slide-down">
       <div
-        v-if="selectable && selectedRowKeys.length"
+        v-if="selectedRowKeys.length"
         class="rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap"
         style="background: var(--admin-accent-soft); border: 1px solid var(--admin-accent-border);"
       >
@@ -175,7 +175,7 @@
           :columns="tableColumns"
           :pagination="pagination"
           :loading="loading"
-          :row-selection="selectable ? rowSelection : null"
+          :row-selection="rowSelection"
           :row-key="rowKey"
           size="small"
           class="admin-table w-full"
@@ -201,15 +201,12 @@
             <template v-else-if="column.key === '__actions'">
               <ActionDropdown
                 :record="record"
-                :show-edit="!!api?.update && canEditRecord(record)"
-                :show-delete="!!api?.delete && canDeleteRecord(record)"
-                :show-more="canShowMoreActions(record)"
-                :more-icon="moreActionIcon"
-                :more-title="moreActionTitle"
+                :show-edit="!!api?.update"
+                :show-delete="!!api?.delete"
                 @edit="openEdit"
                 @delete="handleDelete"
               >
-                <template v-if="canShowMoreActions(record)" #extra>
+                <template #extra>
                   <slot name="rowActions" :record="record" :refresh="fetchItems" />
                 </template>
               </ActionDropdown>
@@ -364,13 +361,6 @@ const props = defineProps({
   formGroups: { type: Array, default: () => [] },
   filterFn: { type: Function, default: null },
   showSearch: { type: Boolean, default: true },
-  selectable: { type: Boolean, default: true },
-  canEditRecord: { type: Function, default: () => true },
-  canDeleteRecord: { type: Function, default: () => true },
-  canSelectRecord: { type: Function, default: () => true },
-  canShowMoreActions: { type: Function, default: () => true },
-  moreActionIcon: { type: Object, default: null },
-  moreActionTitle: { type: String, default: 'Thao tác khác' },
 })
 
 const emit = defineEmits(['reset'])
@@ -416,7 +406,7 @@ const tableColumns = computed(() => {
   return [
     ...mapped,
     // Action column — NOT fixed, let it scroll naturally with table
-    { title: 'Thao tác', key: '__actions', width: 130, align: 'center', fixed: undefined },
+    { title: 'Thao tác', key: '__actions', width: 130, fixed: undefined },
   ]
 })
 
@@ -425,9 +415,6 @@ const rowSelection = computed(() => ({
   onChange: (keys) => {
     selectedRowKeys.value = keys
   },
-  getCheckboxProps: (record) => ({
-    disabled: !props.canSelectRecord(record),
-  }),
 }))
 
 const filteredItems = computed(() => {
@@ -568,14 +555,7 @@ async function handleDelete(record) {
 
 async function handleBulkDelete() {
   try {
-    const allowedIds = items.value
-      .filter((item) => selectedRowKeys.value.includes(item[props.rowKey]) && props.canDeleteRecord(item))
-      .map((item) => item[props.rowKey])
-    if (!allowedIds.length) {
-      message.warning('Không có bản ghi hợp lệ để xóa')
-      return
-    }
-    await props.api.bulkDelete(allowedIds)
+    await props.api.bulkDelete(selectedRowKeys.value)
     message.success('Đã xóa các bản ghi đã chọn')
     selectedRowKeys.value = []
     await fetchItems()

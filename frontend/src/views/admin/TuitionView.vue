@@ -3,17 +3,13 @@
     <AdminResourceView
       title="Học phí và hóa đơn"
       subtitle="Theo dõi học phí, số tiền đã đóng, công nợ và trạng thái hóa đơn từng học viên."
-      :api="tuitionResourceApi"
+      :api="tuitionApi"
       :columns="columns"
       :fields="fields"
       :searchable-fields="['invoiceCode', 'studentNameSnapshot', 'courseNameSnapshot', 'classNameSnapshot']"
       :status-options="statusOptions"
       :form-groups="formGroups"
       :filter-fn="customFilter"
-      :selectable="false"
-      :can-show-more-actions="canShowInvoiceActions"
-      :more-action-icon="WalletOutlined"
-      more-action-title="Xử lý hóa đơn"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -56,27 +52,21 @@
         />
       </template>
 
-      <template #actions>
-        <button
-          type="button"
-          class="admin-btn admin-btn-secondary h-9 px-3"
-          @click="triggerMarkDueOverdue"
+      <!-- Bulk actions -->
+      <template #bulkActions="{ selectedRowKeys, refresh }">
+        <a-button
+          size="small"
+          class="h-8 px-3 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 text-xs font-medium"
+          :disabled="!selectedRowKeys.length"
+          @click="triggerBulkOverdue(selectedRowKeys, refresh)"
         >
-          Quét quá hạn
-        </button>
+          Đánh dấu quá hạn
+        </a-button>
       </template>
 
       <!-- Row Actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
-          v-if="getRemaining(record) > 0"
-          class="rounded-lg px-3 py-2 text-xs"
-          @click="openPaymentModal(record, refresh)"
-        >
-          Ghi nhận thanh toán
-        </a-menu-item>
-        <a-menu-item
-          v-if="canMarkOverdue(record)"
           class="rounded-lg px-3 py-2 text-xs"
           @click="triggerMarkOverdue(record.id, refresh)"
         >
@@ -154,125 +144,20 @@
       ok-text="Đánh dấu quá hạn"
       @confirm="handleExecuteAction"
     />
-
-    <a-modal
-      v-model:open="paymentModalOpen"
-      width="560px"
-      :footer="null"
-      :destroy-on-close="true"
-      :centered="true"
-    >
-      <template #title>
-        <div class="text-sm font-bold text-base-primary pb-3 border-b border-base">
-          Ghi nhận thanh toán học phí
-        </div>
-      </template>
-
-      <div v-if="selectedInvoice" class="mt-4 space-y-4">
-        <div class="rounded-lg border border-base bg-slate-50 dark:bg-slate-900/40 p-3">
-          <div class="text-xs font-semibold text-base-primary">{{ selectedInvoice.studentNameSnapshot }}</div>
-          <div class="text-[11px] text-base-secondary mt-1">
-            {{ selectedInvoice.courseNameSnapshot }} - {{ selectedInvoice.invoiceCode }}
-          </div>
-          <div class="grid grid-cols-3 gap-2 mt-3">
-            <div class="text-[11px]">
-              <div class="text-base-muted">Tổng</div>
-              <div class="font-bold text-base-primary">{{ formatVnd(selectedInvoice.totalAmount || 0) }}</div>
-            </div>
-            <div class="text-[11px]">
-              <div class="text-base-muted">Đã đóng</div>
-              <div class="font-bold text-emerald-600">{{ formatVnd(selectedInvoice.paidAmount || 0) }}</div>
-            </div>
-            <div class="text-[11px]">
-              <div class="text-base-muted">Còn nợ</div>
-              <div class="font-bold text-rose-600">{{ formatVnd(getRemaining(selectedInvoice)) }}</div>
-            </div>
-          </div>
-        </div>
-
-        <a-form ref="paymentFormRef" :model="paymentForm" layout="vertical">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <a-form-item
-              label="Số tiền thanh toán"
-              name="amount"
-              :rules="[{ required: true, message: 'Vui lòng nhập số tiền' }]"
-            >
-              <a-input-number
-                v-model:value="paymentForm.amount"
-                class="w-full"
-                :min="1"
-                :max="getRemaining(selectedInvoice)"
-              />
-            </a-form-item>
-
-            <a-form-item label="Phương thức" name="method">
-              <a-select v-model:value="paymentForm.method">
-                <a-select-option v-for="option in methodOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
-
-            <a-form-item label="Ngày thanh toán" name="paymentDate">
-              <a-date-picker v-model:value="paymentForm.paymentDate" class="w-full" value-format="YYYY-MM-DD" />
-            </a-form-item>
-
-            <a-form-item label="Trạng thái" name="status">
-              <a-select v-model:value="paymentForm.status">
-                <a-select-option v-for="option in paymentStatusOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
-
-            <a-form-item label="Người thu" name="createdBy">
-              <a-input v-model:value="paymentForm.createdBy" />
-            </a-form-item>
-
-            <a-form-item label="Ghi chú" name="note" class="md:col-span-2">
-              <a-textarea v-model:value="paymentForm.note" :rows="3" />
-            </a-form-item>
-          </div>
-        </a-form>
-
-        <div class="flex justify-end gap-2 pt-4 border-t border-base">
-          <button type="button" class="admin-btn admin-btn-secondary h-10 px-5" :disabled="paymentSaving" @click="paymentModalOpen = false">
-            Đóng
-          </button>
-          <button type="button" class="admin-btn admin-btn-primary h-10 px-5" :disabled="paymentSaving" @click="submitPayment">
-            {{ paymentSaving ? 'Đang lưu...' : 'Ghi nhận thanh toán' }}
-          </button>
-        </div>
-      </div>
-    </a-modal>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { WalletOutlined } from '@ant-design/icons-vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import ConfirmActionModal from '@/components/admin/ConfirmActionModal.vue'
 import { tuitionApi } from '@/api/tuitionApi'
-import { paymentApi } from '@/api/paymentApi'
 import { courseApi } from '@/api/courseApi'
-import { INVOICE_STATUS, PAYMENT_METHOD, PAYMENT_STATUS, toOptions } from '@/lib/constants'
+import { INVOICE_STATUS, toOptions } from '@/lib/constants'
 import { formatVnd } from '@/lib/formatters'
 
 const statusOptions = toOptions(INVOICE_STATUS, { 1: 'amber', 2: 'orange', 3: 'green', 4: 'red' })
-const methodOptions = toOptions(PAYMENT_METHOD)
-const paymentStatusOptions = toOptions(PAYMENT_STATUS, { 1: 'green', 2: 'blue', 3: 'red', 4: 'default' })
-const invoiceStatusNameToValue = { Unpaid: 1, Partial: 2, Paid: 3, Overdue: 4 }
-const tuitionResourceApi = {
-  getAll: tuitionApi.getAll,
-  getById: tuitionApi.getById,
-  export: tuitionApi.export
-}
-
-function invoiceStatusValue(status) {
-  return Number.isFinite(Number(status)) ? Number(status) : invoiceStatusNameToValue[status] || 0
-}
 
 // Filter states
 const filterStatus = ref(undefined)
@@ -287,20 +172,6 @@ const confirmTitle = ref('')
 const confirmMsg = ref('')
 const confirmLoading = ref(false)
 let confirmActionCallback = null
-
-const paymentModalOpen = ref(false)
-const paymentSaving = ref(false)
-const selectedInvoice = ref(null)
-const paymentFormRef = ref()
-let paymentRefreshCallback = null
-const paymentForm = reactive({
-  amount: 0,
-  method: 1,
-  paymentDate: '',
-  status: 1,
-  createdBy: 'admin',
-  note: ''
-})
 
 // Table columns
 const columns = [
@@ -351,7 +222,7 @@ const formGroups = [
 ]
 
 function customFilter(item) {
-  const matchStatus = filterStatus.value === undefined || invoiceStatusValue(item.status) === Number(filterStatus.value)
+  const matchStatus = filterStatus.value === undefined || Number(item.status) === Number(filterStatus.value)
   const matchCourse = filterCourseId.value === undefined || item.courseId === filterCourseId.value
 
   let matchDueDate = true
@@ -379,14 +250,6 @@ function getRemaining(record) {
   return Math.max((record.totalAmount || 0) - (record.paidAmount || 0), 0)
 }
 
-function canMarkOverdue(record) {
-  return getRemaining(record) > 0 && invoiceStatusValue(record.status) !== 4
-}
-
-function canShowInvoiceActions(record) {
-  return getRemaining(record) > 0
-}
-
 function getPaymentProgress(record) {
   if (!record.totalAmount || record.totalAmount === 0) return 0
   return Math.min(Math.round(((record.paidAmount || 0) / record.totalAmount) * 100), 100)
@@ -398,56 +261,6 @@ function getProgressBarClass(record) {
   if (progress >= 50) return 'bg-blue-400'
   if (progress > 0) return 'bg-amber-400'
   return 'bg-rose-400'
-}
-
-function todayInputValue() {
-  const now = new Date()
-  const yyyy = now.getFullYear()
-  const mm = String(now.getMonth() + 1).padStart(2, '0')
-  const dd = String(now.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
-
-function openPaymentModal(record, refresh) {
-  selectedInvoice.value = record
-  paymentRefreshCallback = refresh
-  paymentForm.amount = getRemaining(record)
-  paymentForm.method = 1
-  paymentForm.paymentDate = todayInputValue()
-  paymentForm.status = 1
-  paymentForm.createdBy = 'admin'
-  paymentForm.note = ''
-  paymentModalOpen.value = true
-}
-
-async function submitPayment() {
-  if (!selectedInvoice.value) return
-  try {
-    await paymentFormRef.value?.validate()
-    const remaining = getRemaining(selectedInvoice.value)
-    if (Number(paymentForm.amount) <= 0 || Number(paymentForm.amount) > remaining) {
-      message.error('Số tiền thanh toán không hợp lệ')
-      return
-    }
-    paymentSaving.value = true
-    await paymentApi.create({
-      invoiceId: selectedInvoice.value.id,
-      amount: Number(paymentForm.amount),
-      method: paymentForm.method,
-      paymentDate: paymentForm.paymentDate,
-      status: paymentForm.status,
-      createdBy: paymentForm.createdBy || 'admin',
-      note: paymentForm.note || null
-    })
-    message.success('Đã ghi nhận thanh toán')
-    paymentModalOpen.value = false
-    await paymentRefreshCallback?.()
-  } catch (error) {
-    if (error?.errorFields) return
-    message.error(error.message || 'Không thể ghi nhận thanh toán')
-  } finally {
-    paymentSaving.value = false
-  }
 }
 
 function shortCode(code) {
@@ -467,6 +280,17 @@ function triggerMarkOverdue(id, refresh) {
   confirmOpen.value = true
 }
 
+function triggerBulkOverdue(ids, refresh) {
+  confirmTitle.value = `Đánh dấu ${ids.length} hóa đơn quá hạn?`
+  confirmMsg.value = `Trạng thái của ${ids.length} hóa đơn đã chọn sẽ được cập nhật thành Quá hạn.`
+  confirmActionCallback = async () => {
+    await tuitionApi.bulkMarkOverdue(ids)
+    message.success('Đã đánh dấu quá hạn hàng loạt')
+    refresh()
+  }
+  confirmOpen.value = true
+}
+
 async function handleExecuteAction() {
   if (!confirmActionCallback) return
   confirmLoading.value = true
@@ -477,15 +301,6 @@ async function handleExecuteAction() {
     message.error(error.message || 'Không thể thực hiện hành động')
   } finally {
     confirmLoading.value = false
-  }
-}
-
-async function triggerMarkDueOverdue() {
-  try {
-    const result = await tuitionApi.markOverdueDue()
-    message.success(`Đã cập nhật ${result?.updated || 0} hóa đơn quá hạn`)
-  } catch (error) {
-    message.error(error.message || 'Không thể quét hóa đơn quá hạn')
   }
 }
 
