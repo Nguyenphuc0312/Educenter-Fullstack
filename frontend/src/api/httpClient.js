@@ -32,9 +32,11 @@ http.interceptors.response.use(
   response => response,
   async error => {
     const status = error?.response?.status;
+    const message = error?.response?.data?.message || '';
+    const accountLocked = status === 403 && /account is locked/i.test(message);
 
     // 401 — token expired / invalid
-    if (status === 401) {
+    if (status === 401 || accountLocked) {
       localStorage.removeItem('edu_token');
       localStorage.removeItem('edu_user');
       // Avoid redirect loop on login page

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using StudentAttendanceService.Dtos;
 using StudentAttendanceService.Extensions;
 using StudentAttendanceService.Services;
@@ -9,7 +10,7 @@ namespace StudentAttendanceService.Controllers;
 [ApiController]
 [Route("api/students")]
 [Authorize]
-public sealed class StudentsController(IStudentService students, IEnrollmentService enrollments, IAttendanceService attendance, IResultService results, IStudentPortalService portal) : ControllerBase
+public sealed class StudentsController(IStudentService students, IAttendanceService attendance, IResultService results, IStudentPortalService portal) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<StudentResponse>>.Ok(await students.GetAllAsync(ct)));
@@ -23,6 +24,15 @@ public sealed class StudentsController(IStudentService students, IEnrollmentServ
     {
         var result = await students.CreateAsync(request, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<StudentResponse>.Ok(result, "Created"));
+    }
+    [HttpPost("self-profile")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> EnsureSelfProfile(CompleteStudentProfileRequest request, CancellationToken ct)
+    {
+        Guid? referenceId = null;
+        var value = User.FindFirstValue("referenceId");
+        if (Guid.TryParse(value, out var parsed)) referenceId = parsed;
+        return Ok(ApiResponse<StudentResponse>.Ok(await students.EnsureSelfProfileAsync(request, referenceId, ct), "Student profile ready"));
     }
     [HttpPost("bulk-create")]
     [Authorize(Roles = "Admin")]
@@ -71,7 +81,7 @@ public sealed class StudentsController(IStudentService students, IEnrollmentServ
     [HttpGet("{studentId:guid}/learning-profile")]
     public async Task<IActionResult> LearningProfile(Guid studentId, CancellationToken ct) => Ok(ApiResponse<LearningProfileResponse>.Ok(await portal.LearningProfileAsync(studentId, ct)));
     [HttpGet("{studentId:guid}/my-courses")]
-    public async Task<IActionResult> MyCourses(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<EnrollmentResponse>>.Ok(await enrollments.ByStudentAsync(studentId, ct)));
+    public async Task<IActionResult> MyCourses(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<MyCourseResponse>>.Ok(await portal.MyCoursesAsync(studentId, ct)));
     [HttpGet("{studentId:guid}/my-attendance")]
     public async Task<IActionResult> MyAttendance(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<AttendanceRecordResponse>>.Ok(await attendance.RecordsByStudentAsync(studentId, ct)));
     [HttpGet("{studentId:guid}/my-results")]

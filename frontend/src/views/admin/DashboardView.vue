@@ -348,14 +348,36 @@ const paymentsList = ref([])
 const enrollmentsList = ref([])
 const debtList = ref([])
 
+const STUDENT_STATUS_VALUE = { Active: 1, Inactive: 2, Suspended: 3 }
+const CLASS_STATUS_VALUE = { Open: 0, Full: 1, InProgress: 2, Completed: 3, Cancelled: 4 }
+const PAYMENT_STATUS_VALUE = { Success: 1, Pending: 2, Failed: 3, Cancelled: 4, Processing: 2 }
+
+function enumValue(value, map) {
+  const numeric = Number(value)
+  if (Number.isInteger(numeric)) return numeric
+  return map[value]
+}
+
+function studentStatusValue(status) {
+  return enumValue(status, STUDENT_STATUS_VALUE)
+}
+
+function classStatusValue(status) {
+  return enumValue(status, CLASS_STATUS_VALUE)
+}
+
+function paymentStatusValue(status) {
+  return enumValue(status, PAYMENT_STATUS_VALUE)
+}
+
 const overviewData = computed(() => dashboardData.value?.overview || {})
 
 const activeStudentsCount = computed(() =>
-  studentsList.value.filter(s => Number(s.status) === 1).length
+  studentsList.value.filter(s => studentStatusValue(s.status) === 1).length
 )
 
 const activeClassesCount = computed(() =>
-  classesList.value.filter(c => Number(c.status) === 2).length
+  classesList.value.filter(c => classStatusValue(c.status) === 2).length
 )
 
 const totalDebtAmount = computed(() => {
@@ -521,7 +543,7 @@ const cutoffDate = computed(() => {
 
 const revenueTrendData = computed(() => {
   const successfulPayments = paymentsList.value
-    .filter(p => Number(p.status) === 1)
+    .filter(p => paymentStatusValue(p.status) === 1)
     .filter(p => p.paymentDate && new Date(p.paymentDate) >= cutoffDate.value)
     .sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate))
 
@@ -629,7 +651,7 @@ const hasClassStatusData = computed(() => {
 const classStatusChartData = computed(() => {
   const statusCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }
   classesList.value.forEach(cls => {
-    const s = Number(cls.status)
+    const s = classStatusValue(cls.status)
     if (s in statusCounts) statusCounts[s]++
   })
   return {
@@ -664,7 +686,10 @@ const studentsByCourseChartData = computed(() => {
 const upcomingClasses = computed(() => {
   const now = new Date()
   return [...classesList.value]
-    .filter(c => (Number(c.status) === 0 || Number(c.status) === 1) && c.startDate && new Date(c.startDate) > now)
+    .filter(c => {
+      const status = classStatusValue(c.status)
+      return (status === 0 || status === 1) && c.startDate && new Date(c.startDate) > now
+    })
     .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
     .slice(0, 5)
 })

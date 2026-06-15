@@ -10,6 +10,7 @@
       :status-options="statusOptions"
       :form-groups="formGroups"
       :filter-fn="customFilter"
+      :can-select="record => !isPaid(record.status)"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -67,6 +68,7 @@
       <!-- Row Actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
+          v-if="!isPaid(record.status)"
           class="rounded-lg px-3 py-2 text-xs"
           @click="triggerMarkOverdue(record.id, refresh)"
         >
@@ -148,14 +150,26 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import ConfirmActionModal from '@/components/admin/ConfirmActionModal.vue'
 import { tuitionApi } from '@/api/tuitionApi'
 import { courseApi } from '@/api/courseApi'
+import { classApi } from '@/api/classApi'
+import { studentApi } from '@/api/studentApi'
 import { INVOICE_STATUS, toOptions } from '@/lib/constants'
 import { formatVnd } from '@/lib/formatters'
+import {
+  applyClassSnapshot,
+  applyCourseSnapshot,
+  applyStudentSnapshot,
+  asList,
+  classOptions,
+  courseOptions,
+  findById,
+  studentOptions,
+} from '@/lib/adminRelationOptions'
 
 const statusOptions = toOptions(INVOICE_STATUS, { 1: 'amber', 2: 'orange', 3: 'green', 4: 'red' })
 
@@ -164,7 +178,11 @@ const filterStatus = ref(undefined)
 const filterCourseId = ref(undefined)
 const filterDueDateRange = ref(null)
 const courses = ref([])
+const classes = ref([])
+const students = ref([])
 const loadingCourses = ref(false)
+const loadingClasses = ref(false)
+const loadingStudents = ref(false)
 
 // Confirm modal states
 const confirmOpen = ref(false)
@@ -180,15 +198,15 @@ const columns = [
   { title: 'Khóa học', dataIndex: 'courseNameSnapshot', key: 'courseNameSnapshot', width: 160, ellipsis: true },
   { title: 'Tổng tiền', dataIndex: 'totalAmount', key: 'totalAmount', type: 'money', width: 130, sorter: (a, b) => (a.totalAmount || 0) - (b.totalAmount || 0) },
   { title: 'Đã đóng', dataIndex: 'paidAmount', key: 'paidAmount', type: 'money', width: 130, sorter: (a, b) => (a.paidAmount || 0) - (b.paidAmount || 0) },
-  { title: 'Còn nợ', key: 'remainingAmount', width: 110 },
-  { title: 'Tiến độ', key: 'progress', width: 200 },
+  { title: 'Còn nợ', key: 'remainingAmount', width: 110, sortValue: (record) => Number(record.totalAmount || 0) - Number(record.paidAmount || 0) },
+  { title: 'Tiến độ', key: 'progress', width: 200, sortValue: (record) => Number(record.totalAmount) > 0 ? Number(record.paidAmount || 0) / Number(record.totalAmount) : 0 },
   { title: 'Hạn đóng', dataIndex: 'dueDate', key: 'dueDate', type: 'date', width: 120 },
   { title: 'Trạng thái', dataIndex: 'status', key: 'status', type: 'status', width: 130 },
 ]
 
 // Form fields — clean, no raw IDs
-const fields = [
-  { name: 'invoiceCode', label: 'Mã hóa đơn', required: true, default: '' },
+const legacyFields = [
+  { name: 'invoiceCode', label: 'Mã hóa đơn', required: true, editOnly: true, default: '' },
   { name: 'studentId', label: 'ID Học viên', required: true, default: '' },
   { name: 'studentNameSnapshot', label: 'Tên học viên', required: true, default: '' },
   { name: 'studentCodeSnapshot', label: 'Mã học viên', default: '' },
@@ -202,23 +220,60 @@ const fields = [
   { name: 'status', label: 'Trạng thái', type: 'select', options: statusOptions, default: 1 },
 ]
 
+const fields = computed(() => [
+  { name: 'invoiceCode', label: 'Mã hóa đơn', required: true, editOnly: true, default: '' },
+  {
+    name: 'studentId',
+    label: 'Học viên',
+    type: 'select',
+    options: studentOptions(students.value),
+    required: true,
+    default: '',
+    placeholder: loadingStudents.value ? 'Đang tải học viên...' : 'Chọn học viên',
+    onChange: (_value, formState, { option }) => applyStudentSnapshot(formState, option?.item),
+  },
+  {
+    name: 'courseId',
+    label: 'Khóa học',
+    type: 'select',
+    options: courseOptions(courses.value),
+    required: true,
+    default: '',
+    placeholder: loadingCourses.value ? 'Đang tải khóa học...' : 'Chọn khóa học',
+    onChange: (value, formState, { option }) => {
+      applyCourseSnapshot(formState, option?.item)
+      const currentClass = findById(classes.value, formState.classId)
+      if (currentClass?.courseId && currentClass.courseId !== value) {
+        formState.classId = ''
+        formState.classNameSnapshot = ''
+      }
+    },
+  },
+  {
+    name: 'classId',
+    label: 'Lớp học',
+    type: 'select',
+    options: classOptions(classes.value),
+    required: true,
+    default: '',
+    placeholder: loadingClasses.value ? 'Đang tải lớp học...' : 'Chọn lớp học',
+    onChange: (_value, formState, { option }) => applyClassSnapshot(formState, option?.item, courses.value),
+  },
+  { name: 'studentNameSnapshot', label: 'Tên học viên', hidden: true, required: true, default: '' },
+  { name: 'studentCodeSnapshot', label: 'Mã học viên', hidden: true, default: '' },
+  { name: 'courseNameSnapshot', label: 'Tên khóa học', hidden: true, required: true, default: '' },
+  { name: 'classNameSnapshot', label: 'Tên lớp', hidden: true, default: '' },
+  { name: 'totalAmount', label: 'Tổng tiền', type: 'number', required: true, default: 0 },
+  { name: 'paidAmount', label: 'Đã đóng', type: 'number', default: 0 },
+  { name: 'dueDate', label: 'Hạn đóng', type: 'date', default: '' },
+  { name: 'status', label: 'Trạng thái', type: 'select', options: statusOptions, default: 1 },
+])
+
 const formGroups = [
-  {
-    title: 'Thông tin hóa đơn',
-    fields: ['invoiceCode', 'status', 'dueDate']
-  },
-  {
-    title: 'Học viên',
-    fields: ['studentId', 'studentNameSnapshot', 'studentCodeSnapshot']
-  },
-  {
-    title: 'Khóa học & Lớp',
-    fields: ['courseId', 'courseNameSnapshot', 'classId', 'classNameSnapshot']
-  },
-  {
-    title: 'Thanh toán',
-    fields: ['totalAmount', 'paidAmount']
-  }
+  { title: 'Thông tin hóa đơn', fields: ['invoiceCode', 'status', 'dueDate'] },
+  { title: 'Học viên', fields: ['studentId', 'studentNameSnapshot', 'studentCodeSnapshot'] },
+  { title: 'Khóa học & Lớp học', fields: ['courseId', 'courseNameSnapshot', 'classId', 'classNameSnapshot'] },
+  { title: 'Thanh toán', fields: ['totalAmount', 'paidAmount'] },
 ]
 
 function customFilter(item) {
@@ -248,6 +303,10 @@ function resetCustomFilters() {
 
 function getRemaining(record) {
   return Math.max((record.totalAmount || 0) - (record.paidAmount || 0), 0)
+}
+
+function isPaid(status) {
+  return Number(status) === 3 || status === 'Paid'
 }
 
 function getPaymentProgress(record) {
@@ -304,14 +363,26 @@ async function handleExecuteAction() {
   }
 }
 
-async function loadCourses() {
+async function loadDependencies() {
   loadingCourses.value = true
+  loadingClasses.value = true
+  loadingStudents.value = true
   try {
-    const res = await courseApi.getAll()
-    courses.value = res?.items || res?.data || res || []
+    const [coursesRes, classesRes, studentsRes] = await Promise.all([
+      courseApi.getAll(),
+      classApi.getAll(),
+      studentApi.getAll(),
+    ])
+    courses.value = asList(coursesRes)
+    classes.value = asList(classesRes)
+    students.value = asList(studentsRes)
   } catch (e) {}
-  finally { loadingCourses.value = false }
+  finally {
+    loadingCourses.value = false
+    loadingClasses.value = false
+    loadingStudents.value = false
+  }
 }
 
-onMounted(loadCourses)
+onMounted(loadDependencies)
 </script>

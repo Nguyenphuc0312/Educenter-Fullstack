@@ -5,7 +5,7 @@
       v-if="showView"
       size="small"
       type="text"
-      class="h-7 w-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+      class="action-icon-btn"
       @click="$emit('view', record)"
       title="Chi tiết"
     >
@@ -17,7 +17,7 @@
       v-if="showEdit"
       size="small"
       type="text"
-      class="h-7 w-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+      class="action-icon-btn action-icon-btn-edit"
       @click="$emit('edit', record)"
       title="Chỉnh sửa"
     >
@@ -29,7 +29,7 @@
       <a-button
         size="small"
         type="text"
-        class="h-7 w-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+        class="action-icon-btn"
         title="Thao tác khác"
       >
         <template #icon><MoreOutlined class="text-slate-600 dark:text-slate-300 text-[14px]" /></template>
@@ -140,6 +140,45 @@ function handleActionClick(act) {
 <style scoped>
 :deep(.ant-dropdown-menu) {
   padding: 4px !important;
+}
+.action-icon-btn {
+  width: 30px !important;
+  height: 30px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border: 1px solid var(--admin-border, #e2e8f0) !important;
+  border-radius: 8px !important;
+  background: var(--admin-surface-2, #f8fafc) !important;
+  color: var(--admin-text-muted, #64748b) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+.action-icon-btn:hover {
+  border-color: var(--admin-accent, #4f46e5) !important;
+  background: var(--admin-accent-soft, #eef2ff) !important;
+  color: var(--admin-accent, #4f46e5) !important;
+}
+.action-icon-btn :deep(.ant-btn-icon) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+}
+.action-icon-btn :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+.dark .action-icon-btn {
+  background: #0b1728 !important;
+  border-color: #263653 !important;
+  color: #cbd5e1 !important;
+  box-shadow: none !important;
+}
+.dark .action-icon-btn:hover {
+  background: rgba(59, 130, 246, 0.16) !important;
+  border-color: #60a5fa !important;
+  color: #bfdbfe !important;
 }
 :deep(.ant-dropdown-menu-item) {
   padding: 6px 12px !important;

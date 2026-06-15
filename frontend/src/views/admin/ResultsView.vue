@@ -133,12 +133,24 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import StatusBadge from '@/components/admin/StatusBadge.vue'
 import { resultApi } from '@/api/resultApi'
 import { courseApi } from '@/api/courseApi'
+import { classApi } from '@/api/classApi'
+import { studentApi } from '@/api/studentApi'
 import { RESULT_STATUS, toOptions } from '@/lib/constants'
+import {
+  applyClassSnapshot,
+  applyCourseSnapshot,
+  applyStudentSnapshot,
+  asList,
+  classOptions,
+  courseOptions,
+  findById,
+  studentOptions,
+} from '@/lib/adminRelationOptions'
 
 // Inline ScoreCell component
 const ScoreCell = {
@@ -176,7 +188,11 @@ const filterCourseId = ref(undefined)
 const filterScoreRange = ref(undefined)
 const filterStatus = ref(undefined)
 const courses = ref([])
+const classes = ref([])
+const students = ref([])
 const loadingCourses = ref(false)
+const loadingClasses = ref(false)
+const loadingStudents = ref(false)
 
 const columns = [
   { title: 'Học viên', key: 'studentNameSnapshot', width: 220 },
@@ -189,7 +205,7 @@ const columns = [
 ]
 
 // Form fields — clean, no raw IDs in labels
-const fields = [
+const legacyFields = [
   { name: 'studentNameSnapshot', label: 'Tên học viên', required: true, default: '' },
   { name: 'studentCodeSnapshot', label: 'Mã học viên', default: '' },
   { name: 'studentId', label: 'ID Học viên', required: true, default: '' },
@@ -204,23 +220,60 @@ const fields = [
   { name: 'feedback', label: 'Nhận xét', type: 'textarea', fullWidth: true, default: '' },
 ]
 
+const fields = computed(() => [
+  {
+    name: 'studentId',
+    label: 'Học viên',
+    type: 'select',
+    options: studentOptions(students.value),
+    required: true,
+    default: '',
+    placeholder: loadingStudents.value ? 'Đang tải học viên...' : 'Chọn học viên',
+    onChange: (_value, formState, { option }) => applyStudentSnapshot(formState, option?.item),
+  },
+  {
+    name: 'courseId',
+    label: 'Khóa học',
+    type: 'select',
+    options: courseOptions(courses.value),
+    required: true,
+    default: '',
+    placeholder: loadingCourses.value ? 'Đang tải khóa học...' : 'Chọn khóa học',
+    onChange: (value, formState, { option }) => {
+      applyCourseSnapshot(formState, option?.item)
+      const currentClass = findById(classes.value, formState.classId)
+      if (currentClass?.courseId && currentClass.courseId !== value) {
+        formState.classId = ''
+        formState.classNameSnapshot = ''
+      }
+    },
+  },
+  {
+    name: 'classId',
+    label: 'Lớp học',
+    type: 'select',
+    options: classOptions(classes.value),
+    required: true,
+    default: '',
+    placeholder: loadingClasses.value ? 'Đang tải lớp học...' : 'Chọn lớp học',
+    onChange: (_value, formState, { option }) => applyClassSnapshot(formState, option?.item, courses.value),
+  },
+  { name: 'studentNameSnapshot', label: 'Tên học viên', hidden: true, required: true, default: '' },
+  { name: 'studentCodeSnapshot', label: 'Mã học viên', hidden: true, default: '' },
+  { name: 'courseNameSnapshot', label: 'Tên khóa học', hidden: true, required: true, default: '' },
+  { name: 'classNameSnapshot', label: 'Tên lớp', hidden: true, default: '' },
+  { name: 'midtermScore', label: 'Điểm giữa kỳ', type: 'number', default: null },
+  { name: 'finalScore', label: 'Điểm cuối kỳ', type: 'number', default: null },
+  { name: 'attendancePercent', label: 'Chuyên cần (%)', type: 'number', default: 100 },
+  { name: 'evaluatedByTeacherName', label: 'Giáo viên chấm', default: '' },
+  { name: 'feedback', label: 'Nhận xét', type: 'textarea', fullWidth: true, default: '' },
+])
+
 const formGroups = [
-  {
-    title: 'Học viên',
-    fields: ['studentNameSnapshot', 'studentCodeSnapshot', 'studentId']
-  },
-  {
-    title: 'Khóa học & Lớp',
-    fields: ['courseNameSnapshot', 'courseId', 'classNameSnapshot', 'classId']
-  },
-  {
-    title: 'Điểm số & Chuyên cần',
-    fields: ['midtermScore', 'finalScore', 'attendancePercent']
-  },
-  {
-    title: 'Đánh giá',
-    fields: ['evaluatedByTeacherName', 'feedback']
-  }
+  { title: 'Học viên', fields: ['studentNameSnapshot', 'studentCodeSnapshot', 'studentId'] },
+  { title: 'Khóa học & Lớp học', fields: ['courseNameSnapshot', 'courseId', 'classNameSnapshot', 'classId'] },
+  { title: 'Điểm số & Chuyên cần', fields: ['midtermScore', 'finalScore', 'attendancePercent'] },
+  { title: 'Đánh giá', fields: ['evaluatedByTeacherName', 'feedback'] },
 ]
 
 function customFilter(item) {
@@ -266,14 +319,26 @@ function avatarColor(name) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
-async function loadCourses() {
+async function loadDependencies() {
   loadingCourses.value = true
+  loadingClasses.value = true
+  loadingStudents.value = true
   try {
-    const result = await courseApi.getAll()
-    courses.value = result?.items || result?.data || result || []
+    const [coursesRes, classesRes, studentsRes] = await Promise.all([
+      courseApi.getAll(),
+      classApi.getAll(),
+      studentApi.getAll(),
+    ])
+    courses.value = asList(coursesRes)
+    classes.value = asList(classesRes)
+    students.value = asList(studentsRes)
   } catch (error) {}
-  finally { loadingCourses.value = false }
+  finally {
+    loadingCourses.value = false
+    loadingClasses.value = false
+    loadingStudents.value = false
+  }
 }
 
-onMounted(loadCourses)
+onMounted(loadDependencies)
 </script>

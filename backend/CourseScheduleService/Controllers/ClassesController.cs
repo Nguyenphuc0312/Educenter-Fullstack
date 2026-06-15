@@ -86,6 +86,16 @@ public sealed class ClassesController(IClassManagementService service) : Control
     public async Task<IActionResult> Increase(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiResponse<ClassResponse>.Ok(await service.IncreaseAsync(id, cancellationToken)));
 
+    [HttpPut("{id:guid}/reserve-seat/{enrollmentId:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ReserveSeat(Guid id, Guid enrollmentId, CancellationToken cancellationToken) =>
+        Ok(ApiResponse<ClassResponse>.Ok(await service.ReserveSeatAsync(id, enrollmentId, cancellationToken)));
+
+    [HttpPut("{id:guid}/release-seat/{enrollmentId:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ReleaseSeat(Guid id, Guid enrollmentId, CancellationToken cancellationToken) =>
+        Ok(ApiResponse<ClassResponse>.Ok(await service.ReleaseSeatAsync(id, enrollmentId, cancellationToken)));
+
     [HttpPut("{id:guid}/decrease-student-count")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Decrease(Guid id, CancellationToken cancellationToken) =>

@@ -133,7 +133,7 @@ const columns = [
 ]
 
 const fields = [
-  { name: 'studentCode', label: 'Mã học viên', required: true, default: '' },
+  { name: 'studentCode', label: 'Mã học viên', required: true, editOnly: true, default: '' },
   { name: 'fullName', label: 'Họ tên', required: true, default: '' },
   { name: 'email', label: 'Email', required: true, default: '' },
   { name: 'phone', label: 'Điện thoại', default: '' },

@@ -16,6 +16,23 @@
           </button>
         </div>
 
+        <a-select v-model:value="selectedYear" class="w-28" size="small" @change="applyCalendarFilter">
+          <a-select-option :value="null">Tất cả năm</a-select-option>
+          <a-select-option v-for="year in availableYears" :key="year" :value="year">Năm {{ year }}</a-select-option>
+        </a-select>
+        <a-select v-model:value="selectedMonth" class="w-28" size="small" :disabled="!selectedYear" @change="applyCalendarFilter">
+          <a-select-option :value="null">Cả năm</a-select-option>
+          <a-select-option v-for="month in 12" :key="month" :value="month">Tháng {{ month }}</a-select-option>
+        </a-select>
+        <a-range-picker
+          v-if="activePeriod === 'custom'"
+          v-model:value="customDateRange"
+          value-format="YYYY-MM-DD"
+          size="small"
+          class="w-56"
+          :placeholder="['Từ ngày', 'Đến ngày']"
+        />
+
         <!-- Refresh button -->
         <button type="button" class="admin-btn admin-btn-secondary h-9 px-3"
           :disabled="loading" @click="fetchData">
@@ -64,6 +81,13 @@
                   <BookOutlined style="font-size: 13px; color: var(--admin-text-muted);" />
                   <span>Công nợ theo lớp học</span>
                 </div>
+              </a-menu-item>
+              <a-menu-divider style="margin: 4px 0; border-color: var(--admin-border);" />
+              <a-menu-item key="results" class="rounded-lg px-3 py-2 text-xs" @click="handleExport('results')">
+                <div class="flex items-center gap-2"><ReadOutlined /><span>Kết quả học tập</span></div>
+              </a-menu-item>
+              <a-menu-item key="courses" class="rounded-lg px-3 py-2 text-xs" @click="handleExport('courses')">
+                <div class="flex items-center gap-2"><BookOutlined /><span>Danh mục khóa học</span></div>
               </a-menu-item>
             </a-menu>
           </template>
@@ -114,7 +138,7 @@
           <div class="admin-period-pills" style="padding: 2px;">
             <button v-for="opt in trendRangeOptions" :key="opt.value"
               :class="{ 'is-active': revenueTrendRange === opt.value }"
-              @click="revenueTrendRange = opt.value">
+              @click="setTrendRange(opt.value)">
               {{ opt.label }}
             </button>
           </div>
@@ -500,6 +524,54 @@
       </div>
     </div>
 
+    <div v-else-if="activeTab === 'learning'" class="space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div v-for="item in learningKpis" :key="item.label" class="admin-card px-4 py-4">
+          <p class="kpi-hero-label">{{ item.label }}</p>
+          <p class="text-2xl font-extrabold mt-2" :style="{ color: item.color }">{{ item.value }}</p>
+          <p class="text-xs mt-1" style="color: var(--admin-text-muted);">{{ item.sub }}</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="admin-chart-card">
+          <h2 class="admin-section-title mb-3">Phân bố kết quả học tập</h2>
+          <div class="h-72"><Doughnut :data="resultStatusChartData" :options="doughnutChartOptions" /></div>
+        </div>
+        <div class="admin-chart-card">
+          <h2 class="admin-section-title mb-3">Điểm trung bình theo khóa học</h2>
+          <div class="h-72"><Bar :data="averageScoreByCourseChartData" :options="scoreBarOptions" /></div>
+        </div>
+      </div>
+      <div class="admin-chart-card">
+        <h2 class="admin-section-title mb-3">Tương quan điểm số và chuyên cần</h2>
+        <div class="h-72"><Bar :data="scoreAttendanceChartData" :options="scoreBarOptions" /></div>
+      </div>
+    </div>
+
+    <div v-else-if="activeTab === 'operations'" class="space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div v-for="item in operationKpis" :key="item.label" class="admin-card px-4 py-4">
+          <p class="kpi-hero-label">{{ item.label }}</p>
+          <p class="text-2xl font-extrabold mt-2" style="color: var(--admin-accent);">{{ item.value }}</p>
+          <p class="text-xs mt-1" style="color: var(--admin-text-muted);">{{ item.sub }}</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="admin-chart-card">
+          <h2 class="admin-section-title mb-3">Trạng thái khóa học</h2>
+          <div class="h-72"><Doughnut :data="courseStatusChartData" :options="doughnutChartOptions" /></div>
+        </div>
+        <div class="admin-chart-card">
+          <h2 class="admin-section-title mb-3">Trạng thái lớp học</h2>
+          <div class="h-72"><Doughnut :data="classStatusChartData" :options="doughnutChartOptions" /></div>
+        </div>
+      </div>
+      <div class="admin-chart-card">
+        <h2 class="admin-section-title mb-3">Ghi danh theo khóa học</h2>
+        <div class="h-80"><Bar :data="enrollmentByCourseChartData" :options="barChartOptions" /></div>
+      </div>
+    </div>
+
     <!-- Fallback: tab không khớp -->
     <div v-else class="admin-empty-state">
       <p class="text-sm font-semibold" style="color: var(--admin-text);">Chọn một tab để xem báo cáo</p>
@@ -683,10 +755,14 @@
 <script setup>
 import { computed, h, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { DownloadOutlined, SyncOutlined, DownOutlined, InfoCircleOutlined, BarChartOutlined, BookOutlined, TeamOutlined, UserOutlined, DollarCircleOutlined, PayCircleOutlined, RiseOutlined, CreditCardOutlined, CheckCircleOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, AppstoreOutlined, LineChartOutlined, FundOutlined, TrophyOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, SyncOutlined, DownOutlined, InfoCircleOutlined, BarChartOutlined, BookOutlined, TeamOutlined, UserOutlined, DollarCircleOutlined, PayCircleOutlined, RiseOutlined, CreditCardOutlined, CheckCircleOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, AppstoreOutlined, LineChartOutlined, FundOutlined, TrophyOutlined, ReadOutlined, DeploymentUnitOutlined } from '@ant-design/icons-vue'
 import { reportApi } from '@/api/reportApi'
 import { paymentApi } from '@/api/paymentApi'
 import { tuitionApi } from '@/api/tuitionApi'
+import { resultApi } from '@/api/resultApi'
+import { courseApi } from '@/api/courseApi'
+import { classApi } from '@/api/classApi'
+import { enrollmentApi } from '@/api/enrollmentApi'
 import { formatVnd, shortInvoiceCode, shortDateVN } from '@/lib/formatters'
 import EmptyTableState from '@/components/admin/EmptyTableState.vue'
 
@@ -735,10 +811,26 @@ ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale,
 const loading = ref(false)
 const errorMsg = ref('')
 const activeTab = ref('overview')
-const activePeriod = ref('30d')
-const revenueTrendRange = ref('6m')
+const activePeriod = ref('all')
+const revenueTrendRange = ref('all')
+const selectedYear = ref(null)
+const selectedMonth = ref(null)
+const customDateRange = ref(null)
 
 const dateRange = computed(() => {
+  if (activePeriod.value === 'all') return null
+  if (activePeriod.value === 'custom') {
+    if (customDateRange.value?.length === 2) {
+      return [new Date(`${customDateRange.value[0]}T00:00:00`), new Date(`${customDateRange.value[1]}T23:59:59`)]
+    }
+    if (selectedYear.value) {
+      const month = selectedMonth.value
+      const start = month ? new Date(selectedYear.value, month - 1, 1) : new Date(selectedYear.value, 0, 1)
+      const end = month ? new Date(selectedYear.value, month, 0, 23, 59, 59, 999) : new Date(selectedYear.value, 11, 31, 23, 59, 59, 999)
+      return [start, end]
+    }
+    return null
+  }
   const now = new Date()
   const end = new Date(now)
   let start = new Date(now)
@@ -758,6 +850,9 @@ const dateRange = computed(() => {
     case '12m':
       start.setFullYear(now.getFullYear() - 1)
       break
+    case '6m':
+      start.setMonth(now.getMonth() - 6)
+      break
     case '30d':
     default:
       start.setDate(now.getDate() - 29)
@@ -774,21 +869,26 @@ const periodOptions = [
   { value: '30d',  label: '30 ngày' },
   { value: 'month', label: 'Tháng này' },
   { value: 'quarter', label: 'Quý này' },
-  { value: '12m',  label: '12 tháng' }
+  { value: '12m',  label: '12 tháng' },
+  { value: 'all', label: 'Từ trước đến nay' },
+  { value: 'custom', label: 'Tùy chọn' }
 ]
 
 const trendRangeOptions = [
   { value: '7d',  label: '7 ngày' },
   { value: '30d', label: '30 ngày' },
   { value: '6m',  label: '6 tháng' },
-  { value: '12m', label: '12 tháng' }
+  { value: '12m', label: '12 tháng' },
+  { value: 'all', label: 'Tất cả' }
 ]
 
 const tabs = [
   { key: 'overview',    label: 'Tổng quan',     icon: AppstoreOutlined },
   { key: 'revenue',     label: 'Doanh thu',     icon: LineChartOutlined },
   { key: 'debt',        label: 'Công nợ',       icon: PayCircleOutlined },
-  { key: 'course-class', label: 'Khóa học & Lớp', icon: BookOutlined }
+  { key: 'course-class', label: 'Khóa học & Lớp', icon: BookOutlined },
+  { key: 'learning', label: 'Kết quả học tập', icon: ReadOutlined },
+  { key: 'operations', label: 'Vận hành đào tạo', icon: DeploymentUnitOutlined }
 ]
 
 // API data stores
@@ -799,6 +899,15 @@ const debtByClass = ref([])
 const paymentsList = ref([])
 const tuitionList = ref([])
 const revenueOverview = ref(null)
+const resultsList = ref([])
+const coursesList = ref([])
+const classesList = ref([])
+const enrollmentsList = ref([])
+
+const availableYears = computed(() => {
+  const dates = [...paymentsList.value.map(x => x.paymentDate), ...tuitionList.value.map(x => x.createdAt)]
+  return [...new Set(dates.filter(Boolean).map(value => new Date(value).getFullYear()))].sort((a, b) => b - a)
+})
 
 // Tables columns
 const revenueColumns = [
@@ -842,7 +951,7 @@ const filteredTuition = computed(() => {
 const totalPaidRevenue = computed(() => {
   // Ưu tiên 1: từ filteredPayments (nếu có)
   const fromPayments = filteredPayments.value
-    .filter(p => Number(p.status) === 1)
+    .filter(p => enumValue(p.status, { Success: 1, Pending: 2, Failed: 3, Cancelled: 4 }) === 1)
     .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
   if (fromPayments > 0) return fromPayments
   // Fallback 2: tổng từ revenueByCourse + revenueByClass (khi API tổng quan thiếu)
@@ -854,7 +963,7 @@ const totalPaidRevenue = computed(() => {
 const totalDebtRevenue = computed(() => {
   // Ưu tiên 1: từ filteredTuition (nếu có)
   const fromTuition = filteredTuition.value
-    .filter(t => t.status === 1 || t.status === 2 || t.status === 4) // Unpaid, Partial, Overdue
+    .filter(t => [1, 2, 4].includes(enumValue(t.status, { Unpaid: 1, Partial: 2, Paid: 3, Overdue: 4 })))
     .reduce((sum, t) => sum + parseFloat(t.debtAmount || 0), 0)
   if (fromTuition > 0) return fromTuition
   // Fallback 2: tổng từ debtByStudent + debtByClass
@@ -885,14 +994,14 @@ const collectionRate = computed(() => {
 })
 
 const avgTransactionValue = computed(() => {
-  const payments = filteredPayments.value.filter(p => Number(p.status) === 1)
+  const payments = filteredPayments.value.filter(p => enumValue(p.status, { Success: 1, Pending: 2, Failed: 3, Cancelled: 4 }) === 1)
   if (payments.length === 0) return 0
   return totalPaidRevenue.value / payments.length
 })
 
 // 1. Revenue trend (Line chart)
 const revenueTrendChartData = computed(() => {
-  const successPayments = [...filteredPayments.value].filter(p => p.status === 1)
+  const successPayments = [...filteredPayments.value].filter(p => enumValue(p.status, { Success: 1, Pending: 2, Failed: 3, Cancelled: 4 }) === 1)
   successPayments.sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate))
 
   const dailyMap = {}
@@ -996,8 +1105,9 @@ const topRevenueClass = computed(() => {
 const paymentMethodChartData = computed(() => {
   // Method mapping: 1 Cash, 2 Bank Transfer, 3 Momo, 4 VNPay
   const methods = { 1: 0, 2: 0, 3: 0, 4: 0 }
-  filteredPayments.value.filter(p => p.status === 1).forEach(p => {
-    methods[p.method] = (methods[p.method] || 0) + parseFloat(p.amount)
+  filteredPayments.value.filter(p => enumValue(p.status, { Success: 1, Pending: 2, Failed: 3, Cancelled: 4 }) === 1).forEach(p => {
+    const method = enumValue(p.method, { Cash: 1, BankTransfer: 2, Momo: 3, VNPay: 4 })
+    methods[method] = (methods[method] || 0) + parseFloat(p.amount)
   })
 
   return {
@@ -1016,7 +1126,8 @@ const invoiceStatusChartData = computed(() => {
   // Status mapping: 1 Unpaid, 2 Partial, 3 Paid, 4 Overdue
   const counts = { 1: 0, 2: 0, 3: 0, 4: 0 }
   filteredTuition.value.forEach(inv => {
-    counts[inv.status] = (counts[inv.status] || 0) + 1
+    const status = enumValue(inv.status, { Unpaid: 1, Partial: 2, Paid: 3, Overdue: 4 })
+    counts[status] = (counts[status] || 0) + 1
   })
 
   return {
@@ -1056,6 +1167,88 @@ const debtByStudentChartData = computed(() => {
     }]
   }
 })
+
+function enumValue(value, map) {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : map[value]
+}
+
+const resultStatusChartData = computed(() => {
+  const counts = { 1: 0, 2: 0, 3: 0 }
+  resultsList.value.forEach(item => {
+    const status = enumValue(item.resultStatus, { InProgress: 1, Passed: 2, Failed: 3 })
+    counts[status] = (counts[status] || 0) + 1
+  })
+  return {
+    labels: ['Đang đánh giá', 'Đạt', 'Chưa đạt'],
+    datasets: [{ data: [counts[1], counts[2], counts[3]], backgroundColor: ['#60a5fa', '#10b981', '#f43f5e'], borderWidth: 0 }]
+  }
+})
+
+const averageScoreByCourseChartData = computed(() => {
+  const groups = {}
+  resultsList.value.forEach(item => {
+    const name = item.courseNameSnapshot || 'Chưa xác định'
+    if (!groups[name]) groups[name] = []
+    groups[name].push(Number(item.averageScore || 0))
+  })
+  const rows = Object.entries(groups).map(([name, values]) => ({ name, value: values.reduce((a, b) => a + b, 0) / values.length })).sort((a, b) => b.value - a.value)
+  return { labels: rows.map(x => x.name), datasets: [{ label: 'Điểm trung bình', data: rows.map(x => x.value.toFixed(2)), backgroundColor: rows.map((_, i) => chartBarGradient[i % chartBarGradient.length]), borderRadius: 7, borderSkipped: false }] }
+})
+
+const scoreAttendanceChartData = computed(() => {
+  const rows = [...resultsList.value].sort((a, b) => Number(b.averageScore) - Number(a.averageScore)).slice(0, 12)
+  return {
+    labels: rows.map(x => x.studentNameSnapshot || 'Học viên'),
+    datasets: [
+      { label: 'Điểm TB', data: rows.map(x => Number(x.averageScore || 0)), backgroundColor: '#6366f1', borderRadius: 6 },
+      { label: 'Chuyên cần / 10', data: rows.map(x => Number(x.attendancePercent || 0) / 10), backgroundColor: '#22c55e', borderRadius: 6 }
+    ]
+  }
+})
+
+function statusCount(list, values) {
+  const map = { Draft: 0, Opening: 1, Closed: 2, ComingSoon: 3, Open: 0, Full: 1, InProgress: 2, Completed: 3, Cancelled: 4 }
+  return values.map(value => list.filter(item => enumValue(item.status, map) === value).length)
+}
+
+const courseStatusChartData = computed(() => ({
+  labels: ['Nháp', 'Đang mở', 'Đã đóng', 'Sắp mở'],
+  datasets: [{ data: statusCount(coursesList.value, [0, 1, 2, 3]), backgroundColor: ['#94a3b8', '#10b981', '#f43f5e', '#8b5cf6'], borderWidth: 0 }]
+}))
+
+const classStatusChartData = computed(() => ({
+  labels: ['Đang mở', 'Đã đầy', 'Đang học', 'Hoàn thành', 'Đã hủy'],
+  datasets: [{ data: statusCount(classesList.value, [0, 1, 2, 3, 4]), backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#10b981', '#ef4444'], borderWidth: 0 }]
+}))
+
+const enrollmentByCourseChartData = computed(() => {
+  const groups = {}
+  enrollmentsList.value.forEach(item => {
+    const name = item.courseNameSnapshot || 'Chưa xác định'
+    groups[name] = (groups[name] || 0) + 1
+  })
+  const rows = Object.entries(groups).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+  return { labels: rows.map(x => x.name), datasets: [{ label: 'Lượt ghi danh', data: rows.map(x => x.value), backgroundColor: rows.map((_, i) => chartBarGradient[(i + 3) % chartBarGradient.length]), borderRadius: 7, borderSkipped: false }] }
+})
+
+const learningKpis = computed(() => {
+  const total = resultsList.value.length
+  const passed = resultsList.value.filter(x => enumValue(x.resultStatus, { InProgress: 1, Passed: 2, Failed: 3 }) === 2).length
+  const avg = total ? resultsList.value.reduce((sum, x) => sum + Number(x.averageScore || 0), 0) / total : 0
+  return [
+    { label: 'Kết quả đã ghi nhận', value: total, sub: 'Tổng hồ sơ điểm', color: '#4f46e5' },
+    { label: 'Tỷ lệ đạt', value: total ? `${Math.round(passed / total * 100)}%` : '0%', sub: `${passed}/${total} học viên đạt`, color: '#059669' },
+    { label: 'Điểm trung bình', value: avg.toFixed(2), sub: 'Thang điểm 10', color: '#ea580c' }
+  ]
+})
+
+const operationKpis = computed(() => [
+  { label: 'Khóa học', value: coursesList.value.length, sub: 'Toàn bộ chương trình' },
+  { label: 'Lớp học', value: classesList.value.length, sub: 'Tất cả trạng thái' },
+  { label: 'Lượt ghi danh', value: enrollmentsList.value.length, sub: 'Tổng đăng ký' },
+  { label: 'Đang học', value: enrollmentsList.value.filter(x => enumValue(x.status, { Pending: 1, Confirmed: 2, Studying: 3, Completed: 4, Cancelled: 5 }) === 3).length, sub: 'Ghi danh đang hoạt động' }
+])
 
 // Chart settings
 const chartOptions = {
@@ -1125,6 +1318,16 @@ const barChartOptions = {
     y: { grid: { color: 'rgba(0, 0, 0, 0.04)' }, ticks: { callback: (value) => formatVnd(value), font: { size: 10 } } }
   },
   datasets: { bar: { maxBarThickness: 40 } }
+}
+
+const scoreBarOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
+  scales: {
+    x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, font: { size: 10 } } },
+    y: { beginAtZero: true, max: 10, grid: { color: 'rgba(100,116,139,.12)' }, ticks: { stepSize: 2 } }
+  }
 }
 
 const horizontalBarOptions = {
@@ -1221,7 +1424,7 @@ const activePeriodLabel = computed(() => {
 })
 
 // ============ Debt tab KPIs ============
-const overdueInvoiceCount = computed(() => tuitionList.value.filter(t => Number(t.status) === 4).length)
+const overdueInvoiceCount = computed(() => tuitionList.value.filter(t => enumValue(t.status, { Unpaid: 1, Partial: 2, Paid: 3, Overdue: 4 }) === 4).length)
 const totalDebtorsCount = computed(() => debtByStudent.value.filter(d => parseFloat(d.totalDebt || 0) > 0).length)
 
 const debtKpis = computed(() => [
@@ -1261,7 +1464,7 @@ const topDebtors = computed(() => {
 
 const recentTransactions = computed(() => {
   return [...paymentsList.value]
-    .filter(p => Number(p.status) === 1)
+    .filter(p => enumValue(p.status, { Success: 1, Pending: 2, Failed: 3, Cancelled: 4 }) === 1)
     .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))
     .slice(0, 5)
 })
@@ -1326,6 +1529,21 @@ function studentInitials(name) {
 // ============ Period setters ============
 function setPeriod(value) {
   activePeriod.value = value
+  if (value !== 'custom') {
+    selectedYear.value = null
+    selectedMonth.value = null
+    customDateRange.value = null
+  }
+}
+
+function applyCalendarFilter() {
+  activePeriod.value = 'custom'
+  customDateRange.value = null
+}
+
+function setTrendRange(value) {
+  revenueTrendRange.value = value
+  setPeriod(value)
 }
 
 async function handleExport(type) {
@@ -1335,6 +1553,8 @@ async function handleExport(type) {
     else if (type === 'class') await reportApi.exportRevenueByClass()
     else if (type === 'debt-student') await reportApi.exportDebtByStudent()
     else if (type === 'debt-class') await reportApi.exportDebtByClass()
+    else if (type === 'results') await resultApi.export()
+    else if (type === 'courses') await courseApi.export()
     else if (type === 'overview') {
       // Overview = export revenue by course as fallback (client-side CSV đơn giản)
       await reportApi.exportRevenueByCourse()
@@ -1356,7 +1576,11 @@ async function fetchData() {
       reportApi.getDebtByClass().then(res => { debtByClass.value = res || [] }).catch(() => {}),
       paymentApi.getAll().then(res => { paymentsList.value = res?.items || res?.data || res || [] }).catch(() => {}),
       tuitionApi.getAll().then(res => { tuitionList.value = res?.items || res?.data || res || [] }).catch(() => {}),
-      reportApi.getRevenueOverview().then(res => { revenueOverview.value = res }).catch(() => {})
+      reportApi.getRevenueOverview().then(res => { revenueOverview.value = res }).catch(() => {}),
+      resultApi.getAll().then(res => { resultsList.value = res?.items || res?.data || res || [] }).catch(() => {}),
+      courseApi.getAll().then(res => { coursesList.value = res?.items || res?.data || res || [] }).catch(() => {}),
+      classApi.getAll().then(res => { classesList.value = res?.items || res?.data || res || [] }).catch(() => {}),
+      enrollmentApi.getAll().then(res => { enrollmentsList.value = res?.items || res?.data || res || [] }).catch(() => {})
     ]
     await Promise.all(promises)
   } catch (error) {

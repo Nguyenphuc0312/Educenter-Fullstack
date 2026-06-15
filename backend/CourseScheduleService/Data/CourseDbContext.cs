@@ -10,6 +10,7 @@ public sealed class CourseDbContext(DbContextOptions<CourseDbContext> options) :
     public DbSet<Class> Classes => Set<Class>();
     public DbSet<Schedule> Schedules => Set<Schedule>();
     public DbSet<Teacher> Teachers => Set<Teacher>();
+    public DbSet<ClassSeatReservation> ClassSeatReservations => Set<ClassSeatReservation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,6 +21,8 @@ public sealed class CourseDbContext(DbContextOptions<CourseDbContext> options) :
         modelBuilder.Entity<Teacher>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<Teacher>().Property(x => x.Rating).HasPrecision(3, 2);
         modelBuilder.Entity<Class>().HasIndex(x => x.ClassCode).IsUnique();
+        modelBuilder.Entity<ClassSeatReservation>().HasKey(x => x.EnrollmentId);
+        modelBuilder.Entity<ClassSeatReservation>().HasIndex(x => x.ClassId);
         modelBuilder.Entity<Class>().HasOne(x => x.Course).WithMany(x => x.Classes).HasForeignKey(x => x.CourseId);
         modelBuilder.Entity<Class>().HasOne(x => x.Teacher).WithMany(x => x.Classes).HasForeignKey(x => x.TeacherId);
         modelBuilder.Entity<Schedule>().HasOne(x => x.Class).WithMany(x => x.Schedules).HasForeignKey(x => x.ClassId);

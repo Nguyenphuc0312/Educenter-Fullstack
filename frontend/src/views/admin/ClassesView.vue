@@ -44,9 +44,9 @@
         size="small"
         class="w-28"
       >
-        <a-select-option :value="0">Offline</a-select-option>
-        <a-select-option :value="1">Online</a-select-option>
-        <a-select-option :value="2">Hybrid</a-select-option>
+        <a-select-option :value="0">Trực tiếp</a-select-option>
+        <a-select-option :value="1">Trực tuyến</a-select-option>
+        <a-select-option :value="2">Kết hợp</a-select-option>
       </a-select>
 
       <a-select
@@ -259,6 +259,20 @@ const filterTeacherId = ref(undefined)
 const filterLearningMode = ref(undefined)
 const filterStatus = ref(undefined)
 
+const CLASS_STATUS_VALUE = {
+  Open: 0,
+  Full: 1,
+  InProgress: 2,
+  Completed: 3,
+  Cancelled: 4,
+}
+
+function classStatusValue(status) {
+  const numeric = Number(status)
+  if (Number.isInteger(numeric)) return numeric
+  return CLASS_STATUS_VALUE[status]
+}
+
 // Cột mới: gộp classCode + className + courseNameSnapshot vào 1 cell
 // AdminResourceView sẽ tự map status (key='status', type='status' → StatusBadge tiếng Việt từ CLASS_STATUS)
 // Tên cột key mới: classInfo, teacherInfo, enrollment, schedule
@@ -272,10 +286,10 @@ const columns = [
 ]
 
 const fields = [
-  { name: 'courseId', label: 'Course ID', required: true, default: '' },
-  { name: 'classCode', label: 'Mã lớp', required: true, default: '' },
+  { name: 'courseId', label: 'Khóa học', type: 'select', options: [], required: true, default: '' },
+  { name: 'classCode', label: 'Mã lớp', required: true, editOnly: true, default: '' },
   { name: 'className', label: 'Tên lớp', required: true, default: '' },
-  { name: 'teacherId', label: 'Teacher ID', required: true, default: '' },
+  { name: 'teacherId', label: 'Giảng viên', type: 'select', options: [], required: true, default: '' },
   { name: 'room', label: 'Phòng học', required: true, default: '' },
   { name: 'maxStudents', label: 'Sĩ số tối đa', type: 'number', required: true, default: 30 },
   { name: 'currentStudents', label: 'Sĩ số hiện tại', type: 'number', default: 0 },
@@ -308,7 +322,7 @@ function customFilter(item) {
   const matchCourse = !filterCourseId.value || item.courseId === filterCourseId.value
   const matchTeacher = !filterTeacherId.value || item.teacherId === filterTeacherId.value
   const matchMode = filterLearningMode.value === undefined || Number(item.learningMode) === Number(filterLearningMode.value)
-  const matchStatus = filterStatus.value === undefined || Number(item.status) === Number(filterStatus.value)
+  const matchStatus = filterStatus.value === undefined || classStatusValue(item.status) === Number(filterStatus.value)
   return matchCourse && matchTeacher && matchMode && matchStatus
 }
 
@@ -328,7 +342,7 @@ function classNeedsAttention(record) {
   const end = new Date(record.endDate)
   if (Number.isNaN(end.getTime())) return false
   if (end >= new Date()) return false
-  const status = Number(record.status)
+  const status = classStatusValue(record.status)
   return status === 0 || status === 2
 }
 
@@ -356,7 +370,7 @@ function enrollmentColor(record) {
   return '#3b82f6'                   // xanh dương: còn ít
 }
 
-const modeLabels = { 0: 'Offline', 1: 'Online', 2: 'Hybrid' }
+const modeLabels = LEARNING_MODE
 const modeDotColors = { 0: '#64748b', 1: '#3b82f6', 2: '#8b5cf6' }
 const modeBg = {
   0: { bg: 'rgba(100, 116, 139, 0.1)', color: '#475569' },
@@ -421,6 +435,14 @@ async function loadFilterDependencies() {
     ])
     courses.value = coursesRes?.items || coursesRes?.data || coursesRes || []
     teachers.value = teachersRes?.items || teachersRes?.data || teachersRes || []
+    fields.find(field => field.name === 'courseId').options = courses.value.map(course => ({
+      value: course.id,
+      label: `${course.code || '---'} - ${course.name}`,
+    }))
+    fields.find(field => field.name === 'teacherId').options = teachers.value.map(teacher => ({
+      value: teacher.id,
+      label: teacher.fullName,
+    }))
   } catch (error) {
     // Fail silently
   }

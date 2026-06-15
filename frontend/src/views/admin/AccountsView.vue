@@ -11,6 +11,10 @@
       status-field="status"
       :form-groups="formGroups"
       :filter-fn="customFilter"
+      :can-edit="record => !isAdmin(record.role)"
+      :can-delete="record => !isAdmin(record.role)"
+      :has-row-actions="record => !isAdmin(record.role)"
+      :can-select="record => !isAdmin(record.role)"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -66,7 +70,7 @@
       <!-- Row actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
-          v-if="record.status === 1"
+          v-if="isActiveStatus(record.status)"
           class="rounded-lg px-3 py-2 text-xs text-amber-600"
           @click="triggerLock(record.id, refresh)"
         >
@@ -159,7 +163,7 @@ import { LockOutlined, UnlockOutlined } from '@ant-design/icons-vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import ConfirmActionModal from '@/components/admin/ConfirmActionModal.vue'
 import { accountApi } from '@/api/accountApi'
-import { ACCOUNT_STATUS, USER_ROLE, toOptions } from '@/lib/constants'
+import { ACCOUNT_STATUS, ROLE_INT, USER_ROLE, normalizeRole, toOptions } from '@/lib/constants'
 
 const statusOptions = toOptions(ACCOUNT_STATUS, { 1: 'green', 2: 'red' })
 
@@ -210,8 +214,8 @@ const formGroups = [
 ]
 
 function customFilter(item) {
-  const matchRole = filterRole.value === undefined || Number(item.role) === Number(filterRole.value)
-  const matchStatus = filterStatusValue.value === undefined || Number(item.status) === Number(filterStatusValue.value)
+  const matchRole = filterRole.value === undefined || roleValue(item.role) === Number(filterRole.value)
+  const matchStatus = filterStatusValue.value === undefined || statusValue(item.status) === Number(filterStatusValue.value)
   return matchRole && matchStatus
 }
 
@@ -221,20 +225,30 @@ function resetCustomFilters() {
 }
 
 // Role helpers
+function roleValue(role) {
+  const numericRole = Number(role)
+  if (Number.isInteger(numericRole) && USER_ROLE[numericRole]) return numericRole
+  return ROLE_INT[normalizeRole(role)]
+}
+
 function roleLabel(role) {
   const labels = { 1: 'Admin', 2: 'Giảng viên', 3: 'Học viên' }
-  return labels[Number(role)] || '—'
+  return labels[roleValue(role)] || '—'
+}
+
+function isAdmin(role) {
+  return roleValue(role) === 1
 }
 
 function roleInitials(role) {
   const labels = { 1: 'A', 2: 'T', 3: 'S' }
-  return labels[Number(role)] || '?'
+  return labels[roleValue(role)] || '?'
 }
 
 const ROLE_COLORS = { 1: '#4f46e5', 2: '#059669', 3: '#0891b2' }
 
 function roleColor(role) {
-  return ROLE_COLORS[Number(role)] || '#6366f1'
+  return ROLE_COLORS[roleValue(role)] || '#6366f1'
 }
 
 const ROLE_BADGE_CLASSES = {
@@ -244,7 +258,19 @@ const ROLE_BADGE_CLASSES = {
 }
 
 function roleBadgeClass(role) {
-  return ROLE_BADGE_CLASSES[Number(role)] || 'bg-slate-100 text-slate-600'
+  return ROLE_BADGE_CLASSES[roleValue(role)] || 'bg-slate-100 text-slate-600'
+}
+
+function statusValue(status) {
+  const numericStatus = Number(status)
+  if (Number.isInteger(numericStatus) && ACCOUNT_STATUS[numericStatus]) return numericStatus
+  if (status === 'Active') return 1
+  if (status === 'Locked') return 2
+  return undefined
+}
+
+function isActiveStatus(status) {
+  return statusValue(status) === 1
 }
 
 function formatDate(value) {

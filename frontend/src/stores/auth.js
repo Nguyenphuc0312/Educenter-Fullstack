@@ -81,6 +81,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function completeStudentProfile(profile) {
+    const data = await authApi.completeStudentProfile(profile);
+    const resolvedToken = data.accessToken || data.token;
+    const resolvedUser = normalizeUser(data.user);
+
+    token.value = resolvedToken;
+    user.value = resolvedUser;
+    isAuthenticated.value = true;
+
+    localStorage.setItem('edu_token', resolvedToken);
+    localStorage.setItem('edu_user', JSON.stringify(resolvedUser));
+
+    return resolvedUser;
+  }
+
   // Restore immediately
   restoreSession();
 
@@ -93,6 +108,7 @@ export const useAuthStore = defineStore('auth', () => {
     restoreSession,
     login,
     logout,
-    fetchMe
+    fetchMe,
+    completeStudentProfile
   };
 });

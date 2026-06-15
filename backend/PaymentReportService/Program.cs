@@ -25,6 +25,10 @@ builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IPaymentTransactionService, PaymentTransactionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddHttpClient<IStudentProfileClient, StudentProfileClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:StudentAttendance"] ?? "http://127.0.0.1:5002");
+});
 
 var app = builder.Build();
 

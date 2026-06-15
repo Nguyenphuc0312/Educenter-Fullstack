@@ -32,6 +32,7 @@
           :danger="type === 'danger'"
           :loading="loading"
           class="px-4 text-xs h-8"
+          :class="type === 'success' ? '!bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700' : ''"
           @click="handleConfirm"
         >
           {{ okText }}

@@ -21,6 +21,7 @@ public sealed class UserAccount
 public sealed class TuitionInvoice
 {
     public Guid Id { get; set; }
+    public Guid? EnrollmentId { get; set; }
     [MaxLength(50)] public string InvoiceCode { get; set; } = string.Empty;
     public Guid StudentId { get; set; }
     [MaxLength(200)] public string StudentNameSnapshot { get; set; } = string.Empty;
@@ -32,6 +33,7 @@ public sealed class TuitionInvoice
     public decimal PaidAmount { get; set; }
     public decimal DebtAmount { get; set; }
     public DateTime DueDate { get; set; }
+    public DateTime? PartialPaymentDueDate { get; set; }
     public InvoiceStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

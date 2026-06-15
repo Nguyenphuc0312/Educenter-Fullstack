@@ -10,6 +10,10 @@
       :status-options="statusOptions"
       :form-groups="formGroups"
       :filter-fn="customFilter"
+      :normalize-in="normalizePayment"
+      :can-edit="() => false"
+      :can-delete="() => false"
+      :has-row-actions="record => isPending(record.status)"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -51,22 +55,17 @@
         />
       </template>
 
-      <!-- Bulk cancel -->
-      <template #bulkActions="{ selectedRowKeys, refresh }">
-        <a-button
-          size="small"
-          class="h-8 px-3 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-medium"
-          :disabled="!selectedRowKeys.length"
-          @click="triggerBulkCancel(selectedRowKeys, refresh)"
-        >
-          Hủy giao dịch
-        </a-button>
-      </template>
-
       <!-- Row actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
-          v-if="record.status !== 3 && record.status !== 4"
+          v-if="isPending(record.status)"
+          class="rounded-lg px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400"
+          @click="triggerConfirmOne(record.id, refresh)"
+        >
+          Xác nhận đã nhận tiền
+        </a-menu-item>
+        <a-menu-item
+          v-if="isPending(record.status)"
           class="rounded-lg px-3 py-2 text-xs text-rose-600"
           @click="triggerCancelOne(record.id, refresh)"
         >
@@ -112,9 +111,9 @@
       v-model:open="confirmOpen"
       :title="confirmTitle"
       :message="confirmMsg"
-      type="danger"
+      :type="confirmType"
       :loading="confirmLoading"
-      ok-text="Hủy giao dịch"
+      :ok-text="confirmOkText"
       @confirm="handleExecuteAction"
     />
   </div>
@@ -132,6 +131,23 @@ import { formatVnd } from '@/lib/formatters'
 const statusOptions = toOptions(PAYMENT_STATUS, { 1: 'green', 2: 'blue', 3: 'red', 4: 'default' })
 const methodOptions = toOptions(PAYMENT_METHOD)
 
+const paymentStatusValues = { Success: 1, Pending: 2, Failed: 3, Cancelled: 4 }
+const paymentMethodValues = { Cash: 1, BankTransfer: 2, Momo: 3, Vnpay: 4, VNPay: 4 }
+
+function enumNumber(value, values) {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value)
+  return values[value] ?? value
+}
+
+function normalizePayment(payment) {
+  return {
+    ...payment,
+    status: enumNumber(payment.status, paymentStatusValues),
+    method: enumNumber(payment.method, paymentMethodValues),
+  }
+}
+
 // Filter states
 const filterStatus = ref(undefined)
 const filterMethod = ref(undefined)
@@ -142,6 +158,8 @@ const confirmOpen = ref(false)
 const confirmTitle = ref('')
 const confirmMsg = ref('')
 const confirmLoading = ref(false)
+const confirmType = ref('danger')
+const confirmOkText = ref('Xác nhận')
 let confirmActionCallback = null
 
 // Table columns
@@ -231,24 +249,32 @@ function formatDate(value) {
 }
 
 // Confirm trigger helpers
-function triggerCancelOne(id, refresh) {
-  confirmTitle.value = 'Hủy giao dịch này?'
-  confirmMsg.value = 'Giao dịch sẽ bị đánh dấu là đã hủy và không thể hoàn nguyên.'
+function isPending(status) {
+  return status === 2 || status === '2' || status === 'Pending'
+}
+
+function triggerConfirmOne(id, refresh) {
+  confirmTitle.value = 'Xác nhận đã nhận thanh toán?'
+  confirmMsg.value = 'Công nợ chỉ được cập nhật khi bạn đã đối soát và xác nhận tiền thực tế đã vào tài khoản.'
+  confirmType.value = 'success'
+  confirmOkText.value = 'Xác nhận thanh toán'
   confirmActionCallback = async () => {
-    await paymentApi.cancel(id)
-    message.success('Đã hủy giao dịch')
-    refresh()
+    await paymentApi.confirm(id)
+    message.success('Đã xác nhận thanh toán và cập nhật công nợ')
+    await refresh()
   }
   confirmOpen.value = true
 }
 
-function triggerBulkCancel(ids, refresh) {
-  confirmTitle.value = `Hủy ${ids.length} giao dịch?`
-  confirmMsg.value = `Tất cả ${ids.length} giao dịch đã chọn sẽ bị đánh dấu là đã hủy.`
+function triggerCancelOne(id, refresh) {
+  confirmTitle.value = 'Hủy giao dịch này?'
+  confirmMsg.value = 'Giao dịch sẽ bị đánh dấu là đã hủy và không thể hoàn nguyên.'
+  confirmType.value = 'danger'
+  confirmOkText.value = 'Hủy giao dịch'
   confirmActionCallback = async () => {
-    await paymentApi.bulkCancel(ids)
-    message.success('Đã hủy các giao dịch đã chọn')
-    refresh()
+    await paymentApi.cancel(id)
+    message.success('Đã hủy giao dịch')
+    await refresh()
   }
   confirmOpen.value = true
 }
@@ -260,7 +286,7 @@ async function handleExecuteAction() {
     await confirmActionCallback()
     confirmOpen.value = false
   } catch (error) {
-    message.error(error.message || 'Không thể hủy giao dịch')
+    message.error(error.message || 'Không thể cập nhật giao dịch')
   } finally {
     confirmLoading.value = false
   }

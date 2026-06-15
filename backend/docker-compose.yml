@@ -53,10 +53,14 @@ services:
     environment:
       ASPNETCORE_URLS: "http://+:5002"
       ConnectionStrings__StudentDB: "Server=student-db,1433;Database=StudentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+      ServiceUrls__CourseSchedule: "http://course-service:5001"
+      ServiceUrls__PaymentReport: "http://payment-service:5003"
     ports:
       - "5002:5002"
     depends_on:
       - student-db
+      - course-service
+      - payment-service
 
   payment-service:
     build:
@@ -78,6 +82,20 @@ services:
     container_name: educenter-api-gateway
     environment:
       ASPNETCORE_URLS: "http://+:5000"
+      Routes__0__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__1__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__2__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__3__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__4__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__5__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__6__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__7__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__8__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__9__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__10__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__11__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__12__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__13__DownstreamHostAndPorts__0__Host: "payment-service"
     ports:
       - "5000:5000"
     depends_on:

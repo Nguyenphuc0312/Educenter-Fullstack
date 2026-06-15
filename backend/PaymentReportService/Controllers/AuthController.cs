@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PaymentReportService.Dtos;
+using PaymentReportService.Enums;
 using PaymentReportService.Services;
 using System.Security.Claims;
 
@@ -16,7 +17,20 @@ public sealed class AuthController(IAuthService auth, IAccountService accounts) 
 
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register(CreateAccountRequest request, CancellationToken ct) => Ok(ApiResponse<AccountResponse>.Ok(await auth.RegisterAsync(request, ct), "Registered"));
+    public async Task<IActionResult> Register(CreateAccountRequest request, CancellationToken ct)
+    {
+        request.Role = UserRole.Student;
+        request.ReferenceId = null;
+        return Ok(ApiResponse<AccountResponse>.Ok(await auth.RegisterAsync(request, ct), "Registered"));
+    }
+
+    [HttpPost("complete-student-profile")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> CompleteStudentProfile(CompleteStudentProfileRequest request, CancellationToken ct)
+    {
+        var id = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        return Ok(ApiResponse<LoginResponse>.Ok(await auth.CompleteStudentProfileAsync(id, request, BearerToken(), ct), "Student profile completed"));
+    }
 
     [HttpGet("me")]
     [Authorize]
@@ -33,4 +47,10 @@ public sealed class AuthController(IAuthService auth, IAccountService accounts) 
     [HttpPost("logout")]
     [Authorize]
     public IActionResult Logout() => Ok(ApiResponse<object>.Ok(null, "Logged out"));
+
+    private string? BearerToken()
+    {
+        var authorization = Request.Headers.Authorization.ToString();
+        return authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? authorization["Bearer ".Length..].Trim() : null;
+    }
 }

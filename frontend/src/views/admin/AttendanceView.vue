@@ -3,15 +3,14 @@
     <PageHeader title="Điểm danh" subtitle="Tạo buổi điểm danh, khóa phiên và cập nhật điểm danh hàng loạt." />
 
     <!-- Class Selection Panel -->
-    <div class="bg-card-base border border-base rounded-xl p-4 shadow-sm">
-      <div class="flex flex-col md:flex-row md:items-end gap-3">
-        <div class="flex-1 space-y-1">
+    <div class="attendance-control-card bg-card-base border border-base rounded-xl p-4 shadow-sm">
+      <div class="flex flex-col xl:flex-row xl:items-end gap-4">
+        <div class="flex-1 space-y-2 min-w-0">
           <label class="text-xs font-semibold text-base-secondary">Chọn lớp học</label>
           <a-select
             v-model:value="selectedClassId"
             placeholder="Chọn lớp để xem phiên điểm danh..."
-            size="small"
-            class="w-full"
+            class="attendance-class-select w-full"
             :loading="loadingClasses"
             show-search
             option-filter-prop="children"
@@ -24,8 +23,8 @@
         </div>
 
         <a-button
-          size="small"
           type="primary"
+          class="attendance-create-btn"
           :loading="creatingSession"
           :disabled="!selectedClassId"
           @click="handleCreateSession"
@@ -44,7 +43,7 @@
           Danh sách phiên điểm danh
         </h2>
         <a-button
-          size="small"
+          class="attendance-refresh-btn"
           :loading="loadingSessions"
           @click="loadSessions(selectedClassId)"
         >
@@ -295,6 +294,18 @@ async function loadClasses() {
   }
 }
 
+function normalizeAttendanceStatus(status) {
+  const map = {
+    Present: 1,
+    Absent: 2,
+    Late: 3,
+    Excused: 4,
+  }
+  if (map[status]) return map[status]
+  const numeric = Number(status)
+  return Number.isNaN(numeric) ? 1 : numeric
+}
+
 // Mark all students as present
 function markAllPresent() {
   if (!records.value.length || selectedSession.value?.status === 2) return
@@ -329,7 +340,10 @@ async function loadRecords(sessionId) {
   records.value = []
   try {
     const result = await attendanceApi.getRecordsBySession(sessionId)
-    records.value = result || []
+    records.value = (result || []).map((record) => ({
+      ...record,
+      status: normalizeAttendanceStatus(record.status),
+    }))
   } catch (error) {
     message.error('Không thể tải bản ghi điểm danh')
   } finally {
@@ -423,3 +437,155 @@ function formatDateTime(value) {
 
 onMounted(loadClasses)
 </script>
+
+<style scoped>
+.attendance-control-card {
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.035), transparent 72%),
+    var(--bg-card);
+}
+
+.attendance-control-card label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.attendance-control-card label::before {
+  content: "";
+  width: 4px;
+  height: 14px;
+  border-radius: 999px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.attendance-class-select :deep(.ant-select-selector) {
+  min-height: 40px !important;
+  padding: 4px 12px !important;
+  border-radius: 10px !important;
+}
+
+.attendance-class-select :deep(.ant-select-selection-search-input) {
+  height: 38px !important;
+}
+
+.attendance-class-select :deep(.ant-select-selection-placeholder),
+.attendance-class-select :deep(.ant-select-selection-item) {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  font-size: 13px;
+}
+
+.attendance-create-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  height: 40px !important;
+  min-width: 220px;
+  padding: 0 16px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+.attendance-create-btn :deep(.ant-btn-icon) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-inline-end: 0 !important;
+}
+
+.attendance-create-btn :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+
+.attendance-refresh-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 9px !important;
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+}
+
+.attendance-refresh-btn:hover {
+  border-color: #3b82f6 !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+}
+
+.attendance-refresh-btn :deep(.ant-btn-icon) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-inline-end: 0 !important;
+}
+
+.attendance-refresh-btn :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+
+.attendance-create-btn:disabled,
+.attendance-create-btn[disabled] {
+  background: #f8fafc !important;
+  border-color: #d8dee8 !important;
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+.dark .attendance-control-card {
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.08), transparent 72%),
+    var(--bg-card);
+}
+
+.dark .attendance-control-card label {
+  color: #e5edf8;
+}
+
+.dark .attendance-create-btn:disabled,
+.dark .attendance-create-btn[disabled] {
+  background: #111b2f !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+.dark .attendance-refresh-btn {
+  background: #111b2f !important;
+  border-color: #334155 !important;
+  color: #e5edf8 !important;
+  box-shadow: none !important;
+}
+
+.dark .attendance-refresh-btn:hover {
+  background: rgba(59, 130, 246, 0.16) !important;
+  border-color: #60a5fa !important;
+  color: #bfdbfe !important;
+}
+
+@media (max-width: 767px) {
+  .attendance-create-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
+</style>

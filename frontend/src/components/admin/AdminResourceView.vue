@@ -1,7 +1,10 @@
 <template>
   <div class="space-y-4">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div
+      class="flex flex-col sm:flex-row sm:items-center gap-3"
+      :class="title ? 'sm:justify-between' : 'sm:justify-end'"
+    >
       <!-- Title block -->
       <div v-if="title">
         <h1 class="text-xl font-bold text-base-primary tracking-tight">{{ title }}</h1>
@@ -182,27 +185,39 @@
           @change="onTableChange"
         >
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === '__status'">
+            <template v-if="column.renderType === 'status'">
               <StatusBadge :value="record[statusField]" :options="statusOptions" />
             </template>
 
-            <template v-else-if="column.key === '__money'">
+            <template v-else-if="column.renderType === 'money'">
               <span class="font-medium text-base-primary whitespace-nowrap">
-                {{ formatVnd(record[column.dataIndex] || 0) }}
+                {{ formatVnd(getSortValue(record, column) || 0) }}
               </span>
             </template>
 
-            <template v-else-if="column.key === '__date'">
+            <template v-else-if="column.renderType === 'date'">
               <span class="text-base-secondary whitespace-nowrap">
-                {{ formatDate(record[column.dataIndex]) }}
+                {{ formatDate(getSortValue(record, column)) }}
               </span>
+            </template>
+
+            <template v-else-if="column.renderType === 'timeRange'">
+              <div class="flex flex-col min-w-0 leading-tight">
+                <span class="text-xs font-medium text-base-primary whitespace-nowrap">
+                  {{ formatTimeRange(record, column) }}
+                </span>
+                <span v-if="column.dayField" class="text-[10px] text-base-muted mt-0.5 whitespace-nowrap">
+                  {{ formatDayOfWeek(record[column.dayField]) }}
+                </span>
+              </div>
             </template>
 
             <template v-else-if="column.key === '__actions'">
               <ActionDropdown
+                v-if="hasActionsFor(record)"
                 :record="record"
-                :show-edit="!!api?.update"
-                :show-delete="!!api?.delete"
+                :show-edit="!!api?.update && canEdit(record)"
+                :show-delete="!!api?.delete && canDelete(record)"
                 @edit="openEdit"
                 @delete="handleDelete"
               >
@@ -243,6 +258,13 @@
       </template>
 
       <a-form ref="formRef" :model="formState" layout="vertical" class="mt-4 space-y-4">
+        <div
+          v-if="!editingRecord && props.fields.some((field) => field.editOnly)"
+          class="rounded-md border px-3 py-2 text-xs"
+          style="background: var(--admin-accent-soft); border-color: var(--admin-accent-border); color: var(--admin-text-secondary);"
+        >
+          Mã bản ghi được hệ thống tự sinh sau khi lưu.
+        </div>
         <div class="space-y-5">
           <div v-for="(group, gIdx) in computedGroups" :key="gIdx" class="space-y-3">
             <div v-if="group.title" class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-l-2 border-primary-500 pl-2">
@@ -284,8 +306,17 @@
                   :placeholder="field.placeholder || field.label"
                   class="text-xs w-full"
                   allow-clear
+                  show-search
+                  option-filter-prop="label"
+                  :disabled="resolveFieldDisabled(field)"
+                  @change="handleFieldChange(field, $event)"
                 >
-                  <a-select-option v-for="option in field.options || []" :key="option.value" :value="option.value">
+                  <a-select-option
+                    v-for="option in resolveFieldOptions(field)"
+                    :key="option.value"
+                    :value="option.value"
+                    :label="option.label || option.text"
+                  >
                     {{ option.label || option.text }}
                   </a-select-option>
                 </a-select>
@@ -361,6 +392,10 @@ const props = defineProps({
   formGroups: { type: Array, default: () => [] },
   filterFn: { type: Function, default: null },
   showSearch: { type: Boolean, default: true },
+  canEdit: { type: Function, default: () => true },
+  canDelete: { type: Function, default: () => true },
+  hasRowActions: { type: Function, default: () => true },
+  canSelect: { type: Function, default: () => true },
 })
 
 const emit = defineEmits(['reset'])
@@ -380,27 +415,54 @@ const formState = reactive({})
 // Pagination — reactive state so Ant Design Vue 4 updates properly
 const currentPage = ref(1)
 const pageSize = ref(10)
+const sortState = reactive({
+  columnKey: null,
+  order: null,
+})
 
 // Group form fields for modular rendering
 const computedGroups = computed(() => {
+  const visibleFields = props.fields.filter((field) => !field.hidden && (!field.editOnly || editingRecord.value))
   if (props.formGroups && props.formGroups.length > 0) {
     return props.formGroups.map((group) => ({
       title: group.title,
-      fields: props.fields.filter((f) => group.fields.includes(f.name))
-    }))
+      fields: visibleFields.filter((f) => group.fields.includes(f.name))
+    })).filter((group) => group.fields.length > 0)
   }
-  return [{ title: '', fields: props.fields }]
+  return [{ title: '', fields: visibleFields }]
 })
 
-// Table columns — NO fixed right, let them scroll naturally
+function columnKey(column) {
+  return column.key || column.dataIndex
+}
+
+function isSortableColumn(column) {
+  if (column.type === 'status') return false
+  return column.sortable !== false && Boolean(column.sortValue || column.sortField || column.dataIndex || column.key)
+}
+
+// Table columns — sorting is controlled so it runs before client-side pagination.
 const tableColumns = computed(() => {
   const mapped = props.columns.map((column) => {
-    if (column.type === 'status') {
-      return { ...column, key: '__status', filters: props.statusOptions, onFilter: (value, record) => record[props.statusField] === value }
+    const key = columnKey(column)
+    const mappedColumn = {
+      ...column,
+      key,
+      renderType: column.type,
     }
-    if (column.type === 'money') return { ...column, key: '__money', sorter: (a, b) => (a[column.dataIndex] || 0) - (b[column.dataIndex] || 0) }
-    if (column.type === 'date') return { ...column, key: '__date' }
-    return column
+
+    if (isSortableColumn(column)) {
+      mappedColumn.sorter = true
+      mappedColumn.sortOrder = sortState.columnKey === key ? sortState.order : null
+      mappedColumn.sortDirections = ['ascend', 'descend']
+    }
+
+    if (column.type === 'status') {
+      mappedColumn.filters = props.statusOptions
+      mappedColumn.onFilter = (value, record) => String(record[props.statusField]) === String(value)
+    }
+
+    return mappedColumn
   })
 
   return [
@@ -412,10 +474,17 @@ const tableColumns = computed(() => {
 
 const rowSelection = computed(() => ({
   selectedRowKeys: selectedRowKeys.value,
+  getCheckboxProps: (record) => ({ disabled: !props.canSelect(record) }),
   onChange: (keys) => {
     selectedRowKeys.value = keys
   },
 }))
+
+function hasActionsFor(record) {
+  return (!!props.api?.update && props.canEdit(record))
+    || (!!props.api?.delete && props.canDelete(record))
+    || props.hasRowActions(record)
+}
 
 const filteredItems = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
@@ -432,12 +501,63 @@ const filteredItems = computed(() => {
   })
 })
 
-// Client-side pagination — reactive so Ant Design Vue 4 updates correctly
+function getSortColumn() {
+  return props.columns.find((column) => columnKey(column) === sortState.columnKey)
+}
+
+function getSortValue(record, column) {
+  if (typeof column?.sortValue === 'function') return column.sortValue(record)
+  const field = column?.sortField || column?.dataIndex || column?.key
+  return field ? record?.[field] : null
+}
+
+function isDateColumn(column) {
+  const field = String(column?.sortField || column?.dataIndex || column?.key || '')
+  return column?.type === 'date' || /(date|at|start|end|due)$/i.test(field)
+}
+
+function compareValues(left, right, column) {
+  const leftEmpty = left === null || left === undefined || left === ''
+  const rightEmpty = right === null || right === undefined || right === ''
+  if (leftEmpty || rightEmpty) {
+    if (leftEmpty && rightEmpty) return 0
+    return leftEmpty ? 1 : -1
+  }
+
+  if (isDateColumn(column)) {
+    const leftTime = new Date(left).getTime()
+    const rightTime = new Date(right).getTime()
+    if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime)) return leftTime - rightTime
+  }
+
+  const leftNumber = typeof left === 'number' ? left : Number(left)
+  const rightNumber = typeof right === 'number' ? right : Number(right)
+  if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber)) return leftNumber - rightNumber
+
+  return String(left).localeCompare(String(right), 'vi', {
+    numeric: true,
+    sensitivity: 'base',
+  })
+}
+
+const sortedItems = computed(() => {
+  if (!sortState.columnKey || !sortState.order) return filteredItems.value
+  const column = getSortColumn()
+  if (!column) return filteredItems.value
+
+  const direction = sortState.order === 'descend' ? -1 : 1
+  return [...filteredItems.value].sort((left, right) => {
+    if (typeof column.sorter === 'function') return direction * column.sorter(left, right)
+    return direction * compareValues(getSortValue(left, column), getSortValue(right, column), column)
+  })
+})
+
+// Client-side pagination — sort the complete filtered list before slicing pages.
 const totalItems = computed(() => filteredItems.value.length)
 
 const paginatedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredItems.value.slice(start, start + pageSize.value)
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 function onPageChange(page, size) {
@@ -487,13 +607,22 @@ async function fetchItems() {
 function resetFilters() {
   searchText.value = ''
   statusFilter.value = undefined
+  sortState.columnKey = null
+  sortState.order = null
   currentPage.value = 1
   emit('reset')
 }
 
-function onTableChange(paginationInfo) {
+function onTableChange(paginationInfo, _filters, sorterInfo) {
   if (paginationInfo.current) currentPage.value = paginationInfo.current
   if (paginationInfo.pageSize) pageSize.value = paginationInfo.pageSize
+
+  const sorter = Array.isArray(sorterInfo) ? sorterInfo[0] : sorterInfo
+  const nextColumnKey = sorter?.order ? sorter.columnKey || sorter.field : null
+  const sortChanged = sortState.columnKey !== nextColumnKey || sortState.order !== (sorter?.order || null)
+  sortState.columnKey = nextColumnKey
+  sortState.order = sorter?.order || null
+  if (sortChanged) currentPage.value = 1
 }
 
 // Reset to page 1 when filters/search change
@@ -504,8 +633,57 @@ watch([searchText, statusFilter], () => {
 function resetForm(record = null) {
   Object.keys(formState).forEach((key) => delete formState[key])
   props.fields.forEach((field) => {
-    formState[field.name] = record?.[field.name] ?? field.default ?? null
+    formState[field.name] = normalizeSelectValue(field, record?.[field.name] ?? field.default ?? null)
   })
+}
+
+function normalizeSelectValue(field, value) {
+  if (field.type !== 'select' || value === null || value === undefined) return value
+  const options = resolveFieldOptions(field)
+  if (options.some((option) => option.value === value)) return value
+  const englishEnumMap = {
+    Sunday: 0,
+    Monday: 1,
+    Tuesday: 2,
+    Wednesday: 3,
+    Thursday: 4,
+    Friday: 5,
+    Saturday: 6,
+    Morning: 0,
+    Afternoon: 1,
+    Evening: 2,
+    Offline: 0,
+    Online: 1,
+    Hybrid: 2,
+    Open: 0,
+    Full: 1,
+    InProgress: 2,
+    Completed: 3,
+    Cancelled: 4,
+    Draft: 0,
+    Closed: 2,
+    ComingSoon: 3,
+    Scheduled: 0,
+    Admin: 1,
+    Teacher: 2,
+    Student: 3,
+  }
+  const mapped = englishEnumMap[value]
+  return options.some((option) => option.value === mapped) ? mapped : value
+}
+
+function resolveFieldOptions(field) {
+  return typeof field.options === 'function' ? field.options(formState) : field.options || []
+}
+
+function resolveFieldDisabled(field) {
+  return typeof field.disabled === 'function' ? field.disabled(formState, editingRecord.value) : !!field.disabled
+}
+
+function handleFieldChange(field, value) {
+  if (typeof field.onChange !== 'function') return
+  const option = resolveFieldOptions(field).find((item) => item.value === value)
+  field.onChange(value, formState, { option, editingRecord: editingRecord.value })
 }
 
 function openCreate() {
@@ -591,6 +769,25 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('vi-VN')
 }
 
+function formatTimeValue(value) {
+  if (!value) return '--:--'
+  return String(value).slice(0, 5)
+}
+
+function formatTimeRange(record, column) {
+  return `${formatTimeValue(record[column.startField || 'startTime'])} - ${formatTimeValue(record[column.endField || 'endTime'])}`
+}
+
+function formatDayOfWeek(value) {
+  const labels = {
+    0: 'Chủ nhật', 1: 'Thứ Hai', 2: 'Thứ Ba', 3: 'Thứ Tư',
+    4: 'Thứ Năm', 5: 'Thứ Sáu', 6: 'Thứ Bảy',
+    Sunday: 'Chủ nhật', Monday: 'Thứ Hai', Tuesday: 'Thứ Ba', Wednesday: 'Thứ Tư',
+    Thursday: 'Thứ Năm', Friday: 'Thứ Sáu', Saturday: 'Thứ Bảy',
+  }
+  return labels[value] || value || '-'
+}
+
 onMounted(fetchItems)
 </script>
 
@@ -608,7 +805,7 @@ onMounted(fetchItems)
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 0;
+  max-width: initial;
 }
 /* Cells marked with .admin-cell-wrap (parent opted in) — allow multi-line wrap */
 .admin-table td.admin-cell-wrap {

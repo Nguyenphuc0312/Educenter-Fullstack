@@ -5,14 +5,14 @@ namespace CourseScheduleService.Dtos;
 
 public sealed record CourseResponse(Guid Id, string Code, string Name, string Slug, string ShortDescription, string Description, string Category, string Level, decimal TuitionFee, int TotalSessions, string DurationText, string? ThumbnailUrl, CourseStatus Status, bool IsBestSeller, bool IsPopularThisWeek, int ViewCount, int EnrolledCount, decimal Rating, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record ClassResponse(Guid Id, Guid CourseId, string CourseNameSnapshot, string ClassCode, string ClassName, Guid TeacherId, string TeacherNameSnapshot, string Room, int MaxStudents, int CurrentStudents, DateTime StartDate, DateTime EndDate, LearningMode LearningMode, ClassStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
-public sealed record ScheduleResponse(Guid Id, Guid ClassId, string ClassNameSnapshot, DayOfWeek DayOfWeek, StudyShift StudyShift, TimeOnly StartTime, TimeOnly EndTime, string Room, string Topic, int SessionNumber, ScheduleStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record ScheduleResponse(Guid Id, Guid ClassId, string ClassNameSnapshot, Guid? TeacherId, string? TeacherNameSnapshot, DayOfWeek DayOfWeek, StudyShift StudyShift, TimeOnly StartTime, TimeOnly EndTime, string Room, string Topic, int SessionNumber, ScheduleStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record TeacherResponse(Guid Id, string FullName, string Email, string Phone, string? AvatarUrl, string Specialization, string Bio, int ExperienceYears, decimal Rating, TeacherStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
 
 public class CreateCourseRequest
 {
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(220)] public string Slug { get; set; } = string.Empty;
+    [MaxLength(220)] public string Slug { get; set; } = string.Empty;
     [MaxLength(500)] public string ShortDescription { get; set; } = string.Empty;
     [MaxLength(4000)] public string Description { get; set; } = string.Empty;
     [Required] public string Category { get; set; } = string.Empty;
@@ -31,7 +31,7 @@ public sealed class UpdateCourseRequest : CreateCourseRequest;
 public class CreateClassRequest
 {
     [Required] public Guid CourseId { get; set; }
-    [Required, MaxLength(80)] public string ClassCode { get; set; } = string.Empty;
+    [MaxLength(80)] public string ClassCode { get; set; } = string.Empty;
     [Required, MaxLength(200)] public string ClassName { get; set; } = string.Empty;
     [Required] public Guid TeacherId { get; set; }
     [Required] public string Room { get; set; } = string.Empty;

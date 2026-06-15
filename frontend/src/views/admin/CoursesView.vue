@@ -152,9 +152,9 @@ const columns = [
 ]
 
 const fields = [
-  { name: 'code', label: 'Mã khóa học', required: true, default: '' },
+  { name: 'code', label: 'Mã khóa học', required: true, editOnly: true, default: '' },
   { name: 'name', label: 'Tên khóa học', required: true, default: '' },
-  { name: 'slug', label: 'Slug', required: true, default: '' },
+  { name: 'slug', label: 'Slug', required: true, editOnly: true, default: '' },
   { name: 'category', label: 'Danh mục', required: true, default: 'Frontend' },
   { name: 'level', label: 'Cấp độ', required: true, default: 'Cơ bản' },
   { name: 'tuitionFee', label: 'Học phí', type: 'number', required: true, default: 0 },

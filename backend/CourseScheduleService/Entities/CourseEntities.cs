@@ -51,6 +51,13 @@ public sealed class Class
     public List<Schedule> Schedules { get; set; } = [];
 }
 
+public sealed class ClassSeatReservation
+{
+    public Guid EnrollmentId { get; set; }
+    public Guid ClassId { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 public sealed class Schedule
 {
     public Guid Id { get; set; }
@@ -85,4 +92,3 @@ public sealed class Teacher
     public DateTime UpdatedAt { get; set; }
     public List<Class> Classes { get; set; } = [];
 }
-

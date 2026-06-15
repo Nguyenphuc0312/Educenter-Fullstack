@@ -46,21 +46,22 @@ public sealed class EnrollmentsController(IEnrollmentService service) : Controll
     [HttpGet("export"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> Export(CancellationToken ct) =>
         this.ToCsvFile(await service.GetAllAsync(ct), "enrollments.csv");
-    [HttpPut("{id:guid}/confirm"), Authorize(Roles = "Admin")] public async Task<IActionResult> Confirm(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Studying, ct)));
-    [HttpPut("{id:guid}/cancel"), Authorize(Roles = "Admin")] public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Cancelled, ct)));
-    [HttpPut("{id:guid}/complete"), Authorize(Roles = "Admin,Teacher")] public async Task<IActionResult> Complete(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Completed, ct)));
+    [HttpPut("{id:guid}/confirm"), Authorize(Roles = "Admin")] public async Task<IActionResult> Confirm(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.ConfirmAsync(id, BearerToken(), ct)));
+    [HttpPut("{id:guid}/start-study"), Authorize(Roles = "Admin")] public async Task<IActionResult> StartStudy(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Studying, BearerToken(), ct)));
+    [HttpPut("{id:guid}/cancel"), Authorize(Roles = "Admin")] public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Cancelled, BearerToken(), ct)));
+    [HttpPut("{id:guid}/complete"), Authorize(Roles = "Admin,Teacher")] public async Task<IActionResult> Complete(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Completed, BearerToken(), ct)));
     [HttpPut("bulk-confirm"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> BulkConfirm(BulkDeleteRequest request, CancellationToken ct)
     {
         var items = new List<EnrollmentResponse>();
-        foreach (var id in request.Ids.Distinct()) items.Add(await service.SetStatusAsync(id, EnrollmentStatus.Studying, ct));
+        foreach (var id in request.Ids.Distinct()) items.Add(await service.ConfirmAsync(id, BearerToken(), ct));
         return Ok(ApiResponse<BulkOperationResult<EnrollmentResponse>>.Ok(new() { Items = items, Requested = request.Ids.Count, Succeeded = items.Count }, "Bulk confirmed"));
     }
     [HttpPut("bulk-cancel"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> BulkCancel(BulkDeleteRequest request, CancellationToken ct)
     {
         var items = new List<EnrollmentResponse>();
-        foreach (var id in request.Ids.Distinct()) items.Add(await service.SetStatusAsync(id, EnrollmentStatus.Cancelled, ct));
+        foreach (var id in request.Ids.Distinct()) items.Add(await service.SetStatusAsync(id, EnrollmentStatus.Cancelled, BearerToken(), ct));
         return Ok(ApiResponse<BulkOperationResult<EnrollmentResponse>>.Ok(new() { Items = items, Requested = request.Ids.Count, Succeeded = items.Count }, "Bulk cancelled"));
     }
     [HttpDelete("{id:guid}"), Authorize(Roles = "Admin")] public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await service.DeleteAsync(id, ct); return Ok(ApiResponse<object>.Ok(null, "Deleted")); }
@@ -69,5 +70,11 @@ public sealed class EnrollmentsController(IEnrollmentService service) : Controll
     {
         foreach (var id in request.Ids.Distinct()) await service.DeleteAsync(id, ct);
         return Ok(ApiResponse<object>.Ok(new { requested = request.Ids.Count, succeeded = request.Ids.Distinct().Count() }, "Bulk deleted"));
+    }
+
+    private string? BearerToken()
+    {
+        var authorization = Request.Headers.Authorization.ToString();
+        return authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? authorization["Bearer ".Length..].Trim() : null;
     }
 }

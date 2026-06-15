@@ -49,6 +49,17 @@ static async Task EnsureDatabaseAsync(IServiceProvider services)
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<CourseDbContext>();
             await db.Database.EnsureCreatedAsync();
+            await db.Database.ExecuteSqlRawAsync("""
+                IF OBJECT_ID('ClassSeatReservations', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE ClassSeatReservations (
+                        EnrollmentId uniqueidentifier NOT NULL PRIMARY KEY,
+                        ClassId uniqueidentifier NOT NULL,
+                        CreatedAt datetime2 NOT NULL
+                    );
+                    CREATE INDEX IX_ClassSeatReservations_ClassId ON ClassSeatReservations(ClassId);
+                END
+                """);
             return;
         }
         catch when (attempt < 15)

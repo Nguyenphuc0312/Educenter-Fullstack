@@ -155,11 +155,71 @@
         </div>
       </div>
     </div>
+
+    <a-modal
+      v-model:open="profileModalOpen"
+      title="Hoàn thiện hồ sơ học viên"
+      :footer="null"
+      :destroy-on-close="false"
+      width="560px"
+    >
+      <form class="space-y-4" @submit.prevent="submitProfileAndEnroll">
+        <p class="text-sm text-base-secondary">
+          Bạn chỉ cần tạo hồ sơ học viên một lần trước khi đăng ký lớp đầu tiên.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label class="space-y-1 sm:col-span-2">
+            <span class="text-xs font-semibold text-base-primary">Họ và tên</span>
+            <input v-model.trim="profileForm.fullName" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm" required />
+          </label>
+
+          <label class="space-y-1">
+            <span class="text-xs font-semibold text-base-primary">Email</span>
+            <input v-model.trim="profileForm.email" type="email" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm" required />
+          </label>
+
+          <label class="space-y-1">
+            <span class="text-xs font-semibold text-base-primary">Số điện thoại</span>
+            <input v-model.trim="profileForm.phone" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm" required />
+          </label>
+
+          <label class="space-y-1">
+            <span class="text-xs font-semibold text-base-primary">Ngày sinh</span>
+            <input v-model="profileForm.dateOfBirth" type="date" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm" required />
+          </label>
+
+          <label class="space-y-1">
+            <span class="text-xs font-semibold text-base-primary">Giới tính</span>
+            <select v-model.number="profileForm.gender" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm">
+              <option :value="0">Khác / chưa cập nhật</option>
+              <option :value="1">Nam</option>
+              <option :value="2">Nữ</option>
+              <option :value="3">Khác</option>
+            </select>
+          </label>
+
+          <label class="space-y-1 sm:col-span-2">
+            <span class="text-xs font-semibold text-base-primary">Địa chỉ liên hệ</span>
+            <input v-model.trim="profileForm.address" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm" required />
+          </label>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="px-4 py-2 rounded-lg border border-base text-sm font-semibold" :disabled="profileSubmitting" @click="profileModalOpen = false">
+            Để sau
+          </button>
+          <button type="submit" class="px-4 py-2 rounded-lg gradient-primary text-white text-sm font-bold disabled:opacity-60" :disabled="profileSubmitting">
+            {{ profileSubmitting ? 'Đang lưu...' : 'Lưu hồ sơ và đăng ký' }}
+          </button>
+        </div>
+      </form>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, reactive, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { courseApi } from '../../api/courseApi'
@@ -187,6 +247,17 @@ const teacher = ref(null)
 const isLoading = ref(true)
 const error = ref(null)
 const isEnrolling = ref(false)
+const profileModalOpen = ref(false)
+const profileSubmitting = ref(false)
+const pendingClassId = ref(null)
+const profileForm = reactive({
+  fullName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  gender: 0,
+  address: '',
+})
 
 const overviewItems = computed(() => [
   { index: 1, title: 'Tổng số buổi', value: `${course.value?.sessions || 0} buổi học thực chiến` },
@@ -234,7 +305,10 @@ async function fetchCourseDetails() {
       classData = (openingClasses || []).filter(cls => (cls.courseId || cls.courseID) === courseData.id)
     }
 
-    classes.value = (classData || []).map(normalizeClass)
+    classes.value = (classData || [])
+      .map(normalizeClass)
+      .filter(isClassAvailableForEnrollment)
+      .sort((a, b) => new Date(a.startDate || 0) - new Date(b.startDate || 0))
     course.value = normalizeCourse(courseData, classes.value)
 
     const firstClass = classes.value[0]
@@ -268,10 +342,55 @@ async function handleEnroll(classId) {
   }
 
   if (!authStore.user?.referenceId) {
-    message.error('Tài khoản của bạn chưa được liên kết với hồ sơ học viên.')
+    openProfileModal(classId)
     return
   }
 
+  await createEnrollment(classId)
+}
+
+function openProfileModal(classId) {
+  pendingClassId.value = classId
+  profileForm.fullName = authStore.user?.fullName || ''
+  profileForm.email = authStore.user?.email || ''
+  profileForm.phone = authStore.user?.phone || ''
+  profileForm.dateOfBirth = ''
+  profileForm.gender = 0
+  profileForm.address = ''
+  profileModalOpen.value = true
+}
+
+async function submitProfileAndEnroll() {
+  if (!pendingClassId.value) return
+  if (!profileForm.fullName || !profileForm.email || !profileForm.phone || !profileForm.dateOfBirth || !profileForm.address) {
+    message.error('Vui lòng nhập đầy đủ thông tin hồ sơ học viên.')
+    return
+  }
+
+  profileSubmitting.value = true
+  try {
+    await authStore.completeStudentProfile({
+      fullName: profileForm.fullName,
+      email: profileForm.email,
+      phone: profileForm.phone,
+      dateOfBirth: new Date(profileForm.dateOfBirth).toISOString(),
+      gender: profileForm.gender,
+      address: profileForm.address,
+    })
+    const classId = pendingClassId.value
+    profileModalOpen.value = false
+    pendingClassId.value = null
+    message.success('Đã hoàn thiện hồ sơ học viên.')
+    await createEnrollment(classId)
+  } catch (err) {
+    console.error(err)
+    message.error(err.message || 'Không thể hoàn thiện hồ sơ học viên.')
+  } finally {
+    profileSubmitting.value = false
+  }
+}
+
+async function createEnrollment(classId) {
   isEnrolling.value = true
   try {
     const selectedClass = classes.value.find(cls => cls.id === classId)
@@ -301,6 +420,13 @@ async function handleEnroll(classId) {
 function formatDate(value) {
   if (!value) return ''
   return new Date(value).toLocaleDateString('vi-VN')
+}
+
+function isClassAvailableForEnrollment(cls) {
+  const status = String(cls?.status || '').toLowerCase()
+  const ended = cls?.endDate && new Date(cls.endDate).getTime() < Date.now()
+  const full = Number(cls?.currentStudents || 0) >= Number(cls?.maxStudents || 0)
+  return !ended && !full && !['full', 'completed', 'cancelled'].includes(status)
 }
 
 function handleImgError(e) {

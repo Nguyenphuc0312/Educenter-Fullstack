@@ -93,21 +93,21 @@
       <!-- Row Actions Dropdown items -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
-          v-if="record.status === 1"
+          v-if="enrollmentStatusValue(record.status) === 1"
           class="rounded-lg px-3 py-2 text-xs"
           @click="triggerConfirmOne(record.id, refresh)"
         >
           Xác nhận ghi danh
         </a-menu-item>
         <a-menu-item
-          v-if="record.status === 2 || record.status === 3"
+          v-if="[2, 3].includes(enrollmentStatusValue(record.status))"
           class="rounded-lg px-3 py-2 text-xs text-emerald-600"
           @click="triggerCompleteOne(record.id, refresh)"
         >
           Hoàn thành khóa học
         </a-menu-item>
         <a-menu-item
-          v-if="record.status !== 4 && record.status !== 5"
+          v-if="![4, 5].includes(enrollmentStatusValue(record.status))"
           class="rounded-lg px-3 py-2 text-xs text-rose-600"
           @click="triggerCancelOne(record.id, refresh)"
         >
@@ -175,22 +175,35 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import ConfirmActionModal from '@/components/admin/ConfirmActionModal.vue'
 import { enrollmentApi } from '@/api/enrollmentApi'
 import { courseApi } from '@/api/courseApi'
 import { classApi } from '@/api/classApi'
+import { studentApi } from '@/api/studentApi'
 import { ENROLLMENT_STATUS, toOptions } from '@/lib/constants'
+import {
+  applyClassSnapshot,
+  applyCourseSnapshot,
+  applyStudentSnapshot,
+  asList,
+  classOptions,
+  courseOptions,
+  findById,
+  studentOptions,
+} from '@/lib/adminRelationOptions'
 
 const statusOptions = toOptions(ENROLLMENT_STATUS, { 1: 'orange', 2: 'blue', 3: 'purple', 4: 'green', 5: 'red' })
 
 // Dynamic drop-down list states
 const courses = ref([])
 const classes = ref([])
+const students = ref([])
 const loadingCourses = ref(false)
 const loadingClasses = ref(false)
+const loadingStudents = ref(false)
 
 // Custom filter variables
 const filterCourseId = ref(undefined)
@@ -206,6 +219,20 @@ const confirmType = ref('warning')
 const confirmLoading = ref(false)
 let confirmActionCallback = null
 
+const ENROLLMENT_STATUS_VALUE = {
+  Pending: 1,
+  Confirmed: 2,
+  Studying: 3,
+  Completed: 4,
+  Cancelled: 5,
+}
+
+function enrollmentStatusValue(status) {
+  const numeric = Number(status)
+  if (Number.isInteger(numeric)) return numeric
+  return ENROLLMENT_STATUS_VALUE[status]
+}
+
 // Table columns
 const columns = [
   { title: 'Học viên', key: 'studentNameSnapshot', width: 200 },
@@ -216,7 +243,7 @@ const columns = [
 ]
 
 // Form fields — clean, no raw IDs exposed in labels
-const fields = [
+const legacyFields = [
   { name: 'studentNameSnapshot', label: 'Tên học viên', required: true, default: '' },
   { name: 'studentCodeSnapshot', label: 'Mã học viên', default: '' },
   { name: 'studentId', label: 'ID Học viên', required: true, default: '' },
@@ -228,26 +255,63 @@ const fields = [
   { name: 'note', label: 'Ghi chú', type: 'textarea', fullWidth: true, default: '' },
 ]
 
+const fields = computed(() => [
+  {
+    name: 'studentId',
+    label: 'Học viên',
+    type: 'select',
+    options: studentOptions(students.value),
+    required: true,
+    default: '',
+    placeholder: loadingStudents.value ? 'Đang tải học viên...' : 'Chọn học viên',
+    onChange: (_value, formState, { option }) => applyStudentSnapshot(formState, option?.item),
+  },
+  {
+    name: 'courseId',
+    label: 'Khóa học',
+    type: 'select',
+    options: courseOptions(courses.value),
+    required: true,
+    default: '',
+    placeholder: loadingCourses.value ? 'Đang tải khóa học...' : 'Chọn khóa học',
+    onChange: (value, formState, { option }) => {
+      applyCourseSnapshot(formState, option?.item)
+      const currentClass = findById(classes.value, formState.classId)
+      if (currentClass?.courseId && currentClass.courseId !== value) {
+        formState.classId = ''
+        formState.classNameSnapshot = ''
+      }
+    },
+  },
+  {
+    name: 'classId',
+    label: 'Lớp học',
+    type: 'select',
+    options: classOptions(classes.value),
+    required: true,
+    default: '',
+    placeholder: loadingClasses.value ? 'Đang tải lớp học...' : 'Chọn lớp học',
+    onChange: (_value, formState, { option }) => applyClassSnapshot(formState, option?.item, courses.value),
+  },
+  { name: 'studentNameSnapshot', label: 'Tên học viên', hidden: true, required: true, default: '' },
+  { name: 'studentCodeSnapshot', label: 'Mã học viên', hidden: true, default: '' },
+  { name: 'courseNameSnapshot', label: 'Tên khóa học', hidden: true, required: true, default: '' },
+  { name: 'classNameSnapshot', label: 'Tên lớp', hidden: true, default: '' },
+  { name: 'status', label: 'Trạng thái', type: 'select', options: statusOptions, default: 1 },
+  { name: 'note', label: 'Ghi chú', type: 'textarea', fullWidth: true, default: '' },
+])
+
 const formGroups = [
-  {
-    title: 'Học viên',
-    fields: ['studentNameSnapshot', 'studentCodeSnapshot', 'studentId']
-  },
-  {
-    title: 'Khóa học & Lớp',
-    fields: ['courseNameSnapshot', 'courseId', 'classNameSnapshot', 'classId']
-  },
-  {
-    title: 'Trạng thái & Ghi chú',
-    fields: ['status', 'note']
-  }
+  { title: 'Học viên', fields: ['studentNameSnapshot', 'studentCodeSnapshot', 'studentId'] },
+  { title: 'Khóa học & Lớp học', fields: ['courseNameSnapshot', 'courseId', 'classNameSnapshot', 'classId'] },
+  { title: 'Trạng thái & Ghi chú', fields: ['status', 'note'] },
 ]
 
 // Custom filter checks
 function customFilter(item) {
   const matchCourse = !filterCourseId.value || item.courseId === filterCourseId.value
   const matchClass = !filterClassId.value || item.classId === filterClassId.value
-  const matchStatus = filterStatusValue.value === undefined || Number(item.status) === Number(filterStatusValue.value)
+  const matchStatus = filterStatusValue.value === undefined || enrollmentStatusValue(item.status) === Number(filterStatusValue.value)
 
   let matchDate = true
   if (filterDateRange.value && filterDateRange.value.length >= 2) {
@@ -349,18 +413,22 @@ async function handleExecuteAction() {
 async function loadFilterDependencies() {
   loadingCourses.value = true
   loadingClasses.value = true
+  loadingStudents.value = true
   try {
-    const [coursesRes, classesRes] = await Promise.all([
+    const [coursesRes, classesRes, studentsRes] = await Promise.all([
       courseApi.getAll(),
-      classApi.getAll()
+      classApi.getAll(),
+      studentApi.getAll()
     ])
-    courses.value = coursesRes?.items || coursesRes?.data || coursesRes || []
-    classes.value = classesRes?.items || classesRes?.data || classesRes || []
+    courses.value = asList(coursesRes)
+    classes.value = asList(classesRes)
+    students.value = asList(studentsRes)
   } catch (error) {
     // Fail silently
   } finally {
     loadingCourses.value = false
     loadingClasses.value = false
+    loadingStudents.value = false
   }
 }
 
