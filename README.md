@@ -6,6 +6,7 @@ Repository gồm:
 
 - `backend/`: ASP.NET Core 8 microservices và API Gateway.
 - `frontend/`: Vue 3 + Vite UI.
+- `scripts/setup-demo-database.ps1`: tạo database và nạp dữ liệu mẫu demo.
 - `run-all-local.cmd`: chạy toàn bộ hệ thống trên Windows.
 - `stop-local.cmd`: dừng các tiến trình local theo port.
 
@@ -90,6 +91,40 @@ ConnectionStrings__CourseDB
 ConnectionStrings__StudentDB
 ConnectionStrings__PaymentDB
 ```
+
+## Tạo database và dữ liệu demo
+
+Sau khi pull repo về máy mới, chạy script này một lần trước khi chạy hệ thống:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-demo-database.ps1
+```
+
+Script sẽ:
+
+1. Tạo `CourseDB`, `StudentDB`, `PaymentDB` nếu chưa tồn tại.
+2. Khởi động tạm 3 backend service để tự tạo bảng bằng `EnsureCreated`.
+3. Nạp dữ liệu mẫu tiếng Việt cho khóa học, lớp học, học viên, ghi danh, điểm danh, kết quả học tập, học phí, thanh toán và báo cáo.
+
+Nếu máy dùng SQL Server Express:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-demo-database.ps1 -ServerInstance "localhost\SQLEXPRESS"
+```
+
+Nếu dùng SQL Login:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-demo-database.ps1 -ServerInstance "localhost" -SqlUser "sa" -SqlPassword "YourStrongPassword"
+```
+
+Script cần lệnh `sqlcmd`. Nếu máy chưa có, cài SQL Server Command Line Utilities hoặc thêm thư mục chứa `sqlcmd.exe` vào `PATH`.
+
+```powershell
+sqlcmd -?
+```
+
+Nếu database đã có bảng và chỉ muốn nạp lại dữ liệu mẫu, thêm `-SkipSchemaInit`.
 
 ## Chạy dự án sau khi pull
 
