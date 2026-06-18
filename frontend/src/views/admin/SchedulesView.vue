@@ -17,6 +17,7 @@
     <!-- Tab 1: List View -->
     <div v-show="activeTab === 'list'">
       <AdminResourceView
+        ref="resourceViewRef"
         title=""
         subtitle=""
         :api="scheduleApi"
@@ -33,6 +34,20 @@
       <!-- ── Toolbar ── -->
       <div class="bg-card-base border border-base rounded-xl px-4 py-3 shadow-sm">
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Khóa học -->
+          <a-select
+            v-model:value="selectedCourseId"
+            placeholder="Khóa học"
+            allow-clear
+            class="schedule-filter-select w-52"
+            :loading="loadingCourses"
+            @change="onCalendarFilterChange"
+          >
+            <a-select-option v-for="c in courses" :key="c.id" :value="c.id">
+              {{ c.name }}
+            </a-select-option>
+          </a-select>
+
           <!-- Lớp -->
           <a-select
             v-model:value="selectedClassId"
@@ -104,6 +119,16 @@
           >
             <template #icon><SyncOutlined :spin="calendarLoading" /></template>
             Làm mới
+          </a-button>
+
+          <!-- Xuất lịch học (PDF) -->
+          <a-button
+            size="small"
+            class="admin-btn admin-btn-secondary h-9 px-3 ml-2 shrink-0"
+            @click="exportCalendarPdf"
+          >
+            <template #icon><PrinterOutlined /></template>
+            Xuất lịch học (PDF)
           </a-button>
         </div>
 
@@ -354,8 +379,20 @@
               </div>
             </div>
             <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 col-span-2">
-              <div class="text-[10px] text-base-muted mb-1">Giảng viên</div>
-              <div class="text-xs font-semibold text-base-primary">{{ selectedSchedule.teacherNameSnapshot || '—' }}</div>
+              <div class="text-[10px] text-base-muted mb-1 font-semibold">Giảng viên đứng lớp buổi này</div>
+              <a-select
+                v-model:value="selectedSchedule.teacherId"
+                placeholder="Chọn giảng viên dạy buổi này"
+                class="w-full text-xs"
+                :loading="loadingTeachers"
+                @change="onSessionTeacherChange"
+                show-search
+                option-filter-prop="label"
+              >
+                <a-select-option v-for="t in teachers" :key="t.id" :value="t.id" :label="t.fullName">
+                  {{ t.fullName }}
+                </a-select-option>
+              </a-select>
             </div>
             <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 col-span-2">
               <div class="text-[10px] text-base-muted mb-1">Trạng thái</div>
@@ -380,22 +417,29 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { SyncOutlined } from '@ant-design/icons-vue'
+import { SyncOutlined, PrinterOutlined } from '@ant-design/icons-vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import EmptyTableState from '@/components/admin/EmptyTableState.vue'
 import StatusBadge from '@/components/admin/StatusBadge.vue'
 import { scheduleApi } from '@/api/scheduleApi'
 import { classApi } from '@/api/classApi'
 import { teacherApi } from '@/api/teacherApi'
+import { courseApi } from '@/api/courseApi'
 import { SCHEDULE_STATUS, STUDY_SHIFT, DAY_OF_WEEK_VN, toOptions } from '@/lib/constants'
 import { classOptions } from '@/lib/adminRelationOptions'
+
+const route = useRoute()
+const resourceViewRef = ref(null)
 
 // ── State ──
 const activeTab = ref('list')
 const calendarLoading = ref(false)
 const loadingClasses = ref(false)
 const loadingTeachers = ref(false)
+const loadingCourses = ref(false)
+const selectedCourseId = ref(undefined)
 const selectedClassId = ref([])
 const selectedTeacherId = ref([])
 const selectedRoom = ref([])
@@ -414,6 +458,7 @@ const dragOverCell = ref(null)
 const schedules = ref([])
 const classes = ref([])
 const teachers = ref([])
+const courses = ref([])
 
 // ── Config ──
 const statusOptions = toOptions(SCHEDULE_STATUS, { 0: 'blue', 1: 'green', 2: 'red' })
@@ -513,10 +558,16 @@ const roomOptions = computed(() => {
 })
 
 const hasActiveFilters = computed(() =>
-  Boolean(selectedClassId.value.length || selectedTeacherId.value.length || selectedRoom.value.length || selectedShift.value.length)
+  Boolean(selectedCourseId.value || selectedClassId.value.length || selectedTeacherId.value.length || selectedRoom.value.length || selectedShift.value.length)
 )
 
 const activeFilterChips = computed(() => [
+  ...(selectedCourseId.value ? [{
+    type: 'course',
+    typeLabel: 'Khóa học',
+    value: selectedCourseId.value,
+    label: courses.value.find(c => c.id === selectedCourseId.value)?.name || selectedCourseId.value,
+  }] : []),
   ...selectedClassId.value.map(value => ({
     type: 'class',
     typeLabel: 'Lớp',
@@ -545,6 +596,10 @@ const activeFilterChips = computed(() => [
 
 const filteredSchedules = computed(() =>
   schedules.value.filter(item => {
+    if (selectedCourseId.value) {
+      const cls = classes.value.find(c => c.id === item.classId)
+      if (!cls || cls.courseId !== selectedCourseId.value) return false
+    }
     if (selectedClassId.value.length && !selectedClassId.value.includes(item.classId)) return false
     if (selectedTeacherId.value.length && !selectedTeacherId.value.includes(item.teacherId)) return false
     if (selectedRoom.value.length && !selectedRoom.value.includes(item.room)) return false
@@ -676,6 +731,7 @@ async function onDrop(day, shift) {
     })
     message.success('Đã cập nhật lịch học')
     await fetchCalendarData()
+    resourceViewRef.value?.fetchItems()
   } catch (err) {
     message.error('Không thể cập nhật lịch học: ' + (err.message || ''))
   } finally {
@@ -691,15 +747,16 @@ function openDetailDrawer(item) {
 
 // ── Filter change ──
 function onCalendarFilterChange() {
+  selectedCourseId.value = selectedCourseId.value || undefined
   selectedClassId.value = Array.isArray(selectedClassId.value) ? selectedClassId.value : []
   selectedTeacherId.value = Array.isArray(selectedTeacherId.value) ? selectedTeacherId.value : []
   selectedRoom.value = Array.isArray(selectedRoom.value) ? selectedRoom.value : []
   selectedShift.value = Array.isArray(selectedShift.value) ? selectedShift.value : []
-  // Filter is reactive via computed, no extra action needed
 }
 
 function removeFilterChip(chip) {
   const removeValue = (list) => list.filter(value => value !== chip.value)
+  if (chip.type === 'course') selectedCourseId.value = undefined
   if (chip.type === 'class') selectedClassId.value = removeValue(selectedClassId.value)
   if (chip.type === 'teacher') selectedTeacherId.value = removeValue(selectedTeacherId.value)
   if (chip.type === 'room') selectedRoom.value = removeValue(selectedRoom.value)
@@ -710,26 +767,245 @@ function removeFilterChip(chip) {
 // ── Data fetch ──
 async function fetchCalendarData() {
   calendarLoading.value = true
+  loadingCourses.value = true
   try {
-    const [schedsRes, classesRes, teachersRes] = await Promise.all([
+    const [schedsRes, classesRes, teachersRes, coursesRes] = await Promise.all([
       scheduleApi.getAll(),
       classApi.getAll(),
-      teacherApi.getAll()
+      teacherApi.getAll(),
+      courseApi.getAll()
     ])
     schedules.value = schedsRes?.items || schedsRes?.data || schedsRes || []
     classes.value = classesRes?.items || classesRes?.data || classesRes || []
     teachers.value = teachersRes?.items || teachersRes?.data || teachersRes || []
+    courses.value = coursesRes?.items || coursesRes?.data || coursesRes || []
   } catch (err) {
     message.error('Không thể tải dữ liệu lịch học')
   } finally {
     calendarLoading.value = false
+    loadingCourses.value = false
   }
 }
 
-// Auto-load when switching to calendar tab
+async function onSessionTeacherChange(teacherId) {
+  if (!selectedSchedule.value) return
+  const item = selectedSchedule.value
+  const teacher = teachers.value.find(t => t.id === teacherId)
+  try {
+    await scheduleApi.update(item.id, {
+      ...item,
+      teacherId,
+      teacherNameSnapshot: teacher ? teacher.fullName : ''
+    })
+    message.success('Đã gán giảng viên cho buổi học')
+    await fetchCalendarData()
+    resourceViewRef.value?.fetchItems()
+  } catch (err) {
+    message.error('Không thể cập nhật giảng viên: ' + (err.message || ''))
+  }
+}
+
+function exportCalendarPdf() {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    message.error('Không thể mở cửa sổ in. Vui lòng tắt chặn popup.')
+    return
+  }
+
+  let tableHtml = `
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Ca học</th>
+  `
+  sortedDays.value.forEach(day => {
+    tableHtml += `<th>${day.label}<br/><span style="font-size: 10px; font-weight: normal; opacity: 0.8;">${day.date}</span></th>`
+  })
+  tableHtml += `
+        </tr>
+      </thead>
+      <tbody>
+  `
+  shifts.forEach(shift => {
+    tableHtml += `
+      <tr>
+        <td class="shift-cell">
+          <div class="shift-label" style="color: ${shift.color}; font-weight: bold;">${shift.label}</div>
+          <div class="shift-time">${shift.time}</div>
+        </td>
+    `
+    sortedDays.value.forEach(day => {
+      const cellItems = getCellItems(day.value, shift.value)
+      tableHtml += `<td>`
+      if (cellItems.length > 0) {
+        cellItems.forEach(item => {
+          tableHtml += `
+            <div class="session-card">
+              <div class="session-class">${item.classNameSnapshot}</div>
+              <div class="session-teacher">👨‍🏫 ${item.teacherNameSnapshot || '—'}</div>
+              <div class="session-meta">📍 ${item.room || '—'} · Buổi ${item.sessionNumber}</div>
+            </div>
+          `
+        })
+      } else {
+        tableHtml += `<span class="empty-cell">—</span>`
+      }
+      tableHtml += `</td>`
+    })
+    tableHtml += `</tr>`
+  })
+  tableHtml += `
+      </tbody>
+    </table>
+  `
+
+  let filterText = ''
+  if (selectedCourseId.value) {
+    filterText += `Khóa học: ${courses.value.find(c => c.id === selectedCourseId.value)?.name || ''} | `
+  }
+  if (selectedClassId.value.length) {
+    filterText += `Lớp: ${selectedClassId.value.map(id => classes.value.find(c => c.id === id)?.className || '').join(', ')} | `
+  }
+  if (selectedTeacherId.value.length) {
+    filterText += `Giảng viên: ${selectedTeacherId.value.map(id => teachers.value.find(t => t.id === id)?.fullName || '').join(', ')} | `
+  }
+  if (selectedRoom.value.length) {
+    filterText += `Phòng: ${selectedRoom.value.join(', ')} | `
+  }
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Lịch học EduCenter</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          body {
+            font-family: 'Inter', sans-serif;
+            margin: 20px;
+            color: #1e293b;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 25px;
+          }
+          .header h1 {
+            font-size: 20px;
+            margin: 0 0 5px 0;
+            color: #4f46e5;
+            font-weight: 700;
+          }
+          .header p {
+            font-size: 11px;
+            margin: 0;
+            color: #64748b;
+          }
+          .filters {
+            font-size: 10px;
+            color: #64748b;
+            margin-bottom: 15px;
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+          }
+          .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+          }
+          .print-table th, .print-table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px;
+            vertical-align: top;
+            width: 12.5%;
+          }
+          .print-table th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            text-align: center;
+            color: #475569;
+          }
+          .shift-cell {
+            text-align: center;
+            background-color: #f8fafc;
+          }
+          .shift-label {
+            font-size: 11px;
+            margin-bottom: 2px;
+          }
+          .shift-time {
+            font-size: 9px;
+            color: #64748b;
+          }
+          .session-card {
+            background-color: #f8fafc;
+            border-left: 3px solid #6366f1;
+            padding: 6px 8px;
+            margin-bottom: 6px;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+          }
+          .session-card:last-child {
+            margin-bottom: 0;
+          }
+          .session-class {
+            font-weight: 600;
+            font-size: 10px;
+            color: #1e293b;
+            margin-bottom: 2px;
+          }
+          .session-teacher {
+            font-size: 9px;
+            color: #475569;
+            margin-bottom: 2px;
+          }
+          .session-meta {
+            font-size: 9px;
+            color: #64748b;
+          }
+          .empty-cell {
+            color: #cbd5e1;
+            text-align: center;
+            display: block;
+          }
+          @media print {
+            body { margin: 10px; }
+            .print-table th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .session-card { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>LỊCH HỌC HÀNG TUẦN - EDUCENTER</h1>
+          <p>Hệ thống quản lý đào tạo EduCenter</p>
+        </div>
+        ${filterText ? `<div class="filters"><strong>Bộ lọc:</strong> ${filterText.slice(0, -3)}</div>` : ''}
+        ${tableHtml}
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+    printWindow.close()
+  }, 500)
+}
+
 watch(activeTab, (val) => {
-  if (val === 'calendar' && schedules.value.length === 0) {
+  if (val === 'calendar') {
     fetchCalendarData()
+  } else if (val === 'list') {
+    resourceViewRef.value?.fetchItems()
+  }
+})
+
+onMounted(async () => {
+  await fetchCalendarData()
+  if (route.query.classId) {
+    selectedClassId.value = [route.query.classId]
+    activeTab.value = 'calendar'
   }
 })
 </script>

@@ -86,7 +86,7 @@ public sealed class CreatePaymentRequest
 public sealed class StudentPaymentRequest
 {
     [Required] public Guid InvoiceId { get; set; }
-    [Range(50, 100)] public int Percent { get; set; } = 100;
+    [Range(25, 100)] public int Percent { get; set; } = 100;
     public PaymentMethod Method { get; set; } = PaymentMethod.BankTransfer;
     public string? Note { get; set; }
 }

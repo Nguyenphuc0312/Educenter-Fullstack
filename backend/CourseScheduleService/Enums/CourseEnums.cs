@@ -6,4 +6,6 @@ public enum ClassStatus { Open = 0, Full = 1, InProgress = 2, Completed = 3, Can
 public enum StudyShift { Morning = 0, Afternoon = 1, Evening = 2 }
 public enum ScheduleStatus { Scheduled = 0, Completed = 1, Cancelled = 2 }
 public enum TeacherStatus { Active = 0, Inactive = 1 }
+public enum ClassroomType { Theory = 0, Lab = 1, Seminar = 2, Online = 3 }
+public enum ClassroomStatus { Available = 0, InUse = 1, Maintenance = 2, Closed = 3 }
 

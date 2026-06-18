@@ -16,4 +16,6 @@ export const tuitionApi = {
   bulkDelete: (ids) => callApi(http.post('/gateway/tuition/bulk-delete', { ids })),
   import: (file) => uploadJsonImport('/gateway/tuition/import', file),
   export: () => downloadFile('/gateway/tuition/export', 'tuition-invoices.csv'),
+  sendDebtNotice: (id) => callApi(http.post(`/gateway/tuition/${id}/send-debt-notice`)),
+  isLocked: (studentId) => callApi(http.get(`/gateway/tuition/is-locked/${studentId}`)),
 };

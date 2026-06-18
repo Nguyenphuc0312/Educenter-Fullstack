@@ -21,7 +21,15 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not defined SQL_SERVER set "SQL_SERVER=localhost"
+if not defined SQL_SERVER (
+  sc query "MSSQL$SQLEXPRESS" >nul 2>nul
+  if not errorlevel 1 (
+    set "SQL_SERVER=localhost\SQLEXPRESS"
+  ) else (
+    set "SQL_SERVER=localhost"
+  )
+)
+
 
 if defined SQL_USER (
   if not defined SQL_PASSWORD (

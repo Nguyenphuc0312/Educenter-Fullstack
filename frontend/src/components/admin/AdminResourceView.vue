@@ -72,8 +72,7 @@
         <div class="flex items-center gap-2 flex-wrap flex-1 min-w-0">
           <a-input
             v-if="showSearch"
-            :value="searchText"
-            @input="$emit('update:searchText', $event.target.value)"
+            v-model:value="searchText"
             @press-enter="$emit('search', searchText)"
             :placeholder="searchPlaceholder"
             allow-clear
@@ -787,6 +786,10 @@ function formatDayOfWeek(value) {
   }
   return labels[value] || value || '-'
 }
+
+defineExpose({
+  fetchItems,
+})
 
 onMounted(fetchItems)
 </script>

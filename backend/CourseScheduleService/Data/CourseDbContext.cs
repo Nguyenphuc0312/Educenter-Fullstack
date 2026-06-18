@@ -11,6 +11,8 @@ public sealed class CourseDbContext(DbContextOptions<CourseDbContext> options) :
     public DbSet<Schedule> Schedules => Set<Schedule>();
     public DbSet<Teacher> Teachers => Set<Teacher>();
     public DbSet<ClassSeatReservation> ClassSeatReservations => Set<ClassSeatReservation>();
+    public DbSet<Classroom> Classrooms => Set<Classroom>();
+    public DbSet<ScheduleChangeRequest> ScheduleChangeRequests => Set<ScheduleChangeRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -105,5 +107,19 @@ public sealed class CourseDbContext(DbContextOptions<CourseDbContext> options) :
                 UpdatedAt = now
             };
         }));
+
+        var classroomIds = Enumerable.Range(1, 10).Select(i => Guid.Parse($"55555555-5555-5555-5555-{i:000000000000}")).ToArray();
+        modelBuilder.Entity<Classroom>().HasData(
+            new Classroom { Id = classroomIds[0], Code = "A101", Name = "Phòng A101", Building = "Tòa A", Floor = "Tầng 1", Capacity = 40, Type = ClassroomType.Theory, Status = ClassroomStatus.Available, HasProjector = true, HasAirConditioner = true, IsOnline = false, Description = "Phòng lý thuyết tiêu chuẩn", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[1], Code = "A102", Name = "Phòng A102", Building = "Tòa A", Floor = "Tầng 1", Capacity = 35, Type = ClassroomType.Theory, Status = ClassroomStatus.Available, HasProjector = true, HasAirConditioner = true, IsOnline = false, Description = "Phòng lý thuyết nhỏ", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[2], Code = "B201", Name = "Phòng máy B201", Building = "Tòa B", Floor = "Tầng 2", Capacity = 30, Type = ClassroomType.Lab, Status = ClassroomStatus.Available, HasProjector = true, HasAirConditioner = true, IsOnline = false, Description = "Phòng thực hành lập trình", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[3], Code = "B202", Name = "Phòng máy B202", Building = "Tòa B", Floor = "Tầng 2", Capacity = 25, Type = ClassroomType.Lab, Status = ClassroomStatus.Available, HasProjector = true, HasAirConditioner = true, IsOnline = false, Description = "Phòng thực hành thiết kế", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[4], Code = "C301", Name = "Hội trường C301", Building = "Tòa C", Floor = "Tầng 3", Capacity = 100, Type = ClassroomType.Seminar, Status = ClassroomStatus.Available, HasProjector = true, HasAirConditioner = true, IsOnline = false, Description = "Hội trường lớn", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[5], Code = "C302", Name = "Phòng seminar C302", Building = "Tòa C", Floor = "Tầng 3", Capacity = 20, Type = ClassroomType.Seminar, Status = ClassroomStatus.Available, HasProjector = true, HasAirConditioner = true, IsOnline = false, Description = "Phòng thảo luận nhóm nhỏ", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[6], Code = "ZOOM01", Name = "Online Zoom 01", Building = "", Floor = "", Capacity = 100, Type = ClassroomType.Online, Status = ClassroomStatus.Available, HasProjector = false, HasAirConditioner = false, IsOnline = true, OnlineMeetingUrl = "https://zoom.us/j/room01", Description = "Phòng học trực tuyến Zoom 01", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[7], Code = "ZOOM02", Name = "Online Zoom 02", Building = "", Floor = "", Capacity = 100, Type = ClassroomType.Online, Status = ClassroomStatus.Available, HasProjector = false, HasAirConditioner = false, IsOnline = true, OnlineMeetingUrl = "https://zoom.us/j/room02", Description = "Phòng học trực tuyến Zoom 02", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[8], Code = "A103", Name = "Phòng A103", Building = "Tòa A", Floor = "Tầng 1", Capacity = 40, Type = ClassroomType.Theory, Status = ClassroomStatus.Maintenance, HasProjector = false, HasAirConditioner = true, IsOnline = false, Description = "Đang bảo trì máy chiếu", CreatedAt = now, UpdatedAt = now },
+            new Classroom { Id = classroomIds[9], Code = "MEET01", Name = "Google Meet 01", Building = "", Floor = "", Capacity = 50, Type = ClassroomType.Online, Status = ClassroomStatus.Available, HasProjector = false, HasAirConditioner = false, IsOnline = true, OnlineMeetingUrl = "https://meet.google.com/room01", Description = "Phòng học Google Meet", CreatedAt = now, UpdatedAt = now }
+        );
     }
 }

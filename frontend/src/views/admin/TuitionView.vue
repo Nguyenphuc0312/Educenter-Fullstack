@@ -74,6 +74,19 @@
         >
           Đánh dấu quá hạn
         </a-menu-item>
+        <a-menu-item
+          class="rounded-lg px-3 py-2 text-xs"
+          @click="printInvoiceReceipt(record)"
+        >
+          In biên lai (PDF)
+        </a-menu-item>
+        <a-menu-item
+          v-if="!isPaid(record.status) && getRemaining(record) > 0"
+          class="rounded-lg px-3 py-2 text-xs text-rose-600 font-semibold"
+          @click="sendDebtNotice(record.id)"
+        >
+          Gửi nhắc nợ (Email)
+        </a-menu-item>
       </template>
 
       <!-- Custom Body Cells -->
@@ -348,6 +361,286 @@ function triggerBulkOverdue(ids, refresh) {
     refresh()
   }
   confirmOpen.value = true
+}
+
+async function sendDebtNotice(invoiceId) {
+  try {
+    message.loading({ content: 'Đang gửi email nhắc nợ...', key: 'debt_notice' })
+    await tuitionApi.sendDebtNotice(invoiceId)
+    message.success({ content: 'Đã gửi thông báo nhắc nợ qua email thành công!', key: 'debt_notice' })
+  } catch (err) {
+    message.error({ content: 'Gửi nhắc nợ thất bại: ' + (err.message || ''), key: 'debt_notice' })
+  }
+}
+
+function printInvoiceReceipt(record) {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    message.error('Không thể mở cửa sổ in. Vui lòng tắt chặn popup.')
+    return
+  }
+
+  const remaining = getRemaining(record)
+  const paidProgress = getPaymentProgress(record)
+  const statusLabel = {
+    1: 'Chưa thanh toán',
+    2: 'Đóng một phần',
+    3: 'Đã thanh toán',
+    4: 'Quá hạn'
+  }[Number(record.status)] || record.status
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Biên lai học phí - ${record.invoiceCode}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          body {
+            font-family: 'Inter', sans-serif;
+            margin: 40px;
+            color: #1e293b;
+            line-height: 1.5;
+            font-size: 13px;
+          }
+          .receipt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .logo-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4f46e5;
+            margin: 0;
+            letter-spacing: -0.5px;
+          }
+          .logo-sub {
+            font-size: 11px;
+            color: #64748b;
+            margin: 2px 0 0 0;
+            text-transform: uppercase;
+          }
+          .receipt-title-block {
+            text-align: right;
+          }
+          .receipt-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 5px 0;
+            color: #0f172a;
+          }
+          .receipt-code {
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4f46e5;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+          }
+          .info-section {
+            display: grid;
+            grid-template-cols: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+          }
+          .info-block h3 {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            margin: 0 0 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 4px;
+          }
+          .info-row {
+            display: flex;
+            margin-bottom: 6px;
+          }
+          .info-label {
+            width: 120px;
+            color: #64748b;
+            font-weight: 500;
+          }
+          .info-val {
+            font-weight: 600;
+            color: #0f172a;
+          }
+          .table-container {
+            margin-bottom: 40px;
+          }
+          .receipt-table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          .receipt-table th, .receipt-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .receipt-table th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+          }
+          .receipt-table td {
+            font-size: 13px;
+          }
+          .align-right {
+            text-align: right !important;
+          }
+          .total-row td {
+            border-bottom: none;
+            padding-top: 8px;
+            padding-bottom: 8px;
+          }
+          .grand-total {
+            font-size: 16px;
+            font-weight: 700;
+            color: #4f46e5;
+            border-top: 2px solid #e2e8f0;
+            padding-top: 12px !important;
+          }
+          .signature-section {
+            display: grid;
+            grid-template-cols: 1fr 1fr;
+            gap: 40px;
+            text-align: center;
+            margin-top: 60px;
+            page-break-inside: avoid;
+          }
+          .signature-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+          .signature-title {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 70px;
+          }
+          .signature-name {
+            font-weight: 600;
+            color: #0f172a;
+            border-top: 1px dashed #cbd5e1;
+            width: 180px;
+            padding-top: 6px;
+          }
+          @media print {
+            body { margin: 20px; }
+            .grand-total { color: #000000 !important; }
+            .receipt-table th { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-header">
+          <div>
+            <h1 class="logo-text">EduCenter</h1>
+            <p class="logo-sub">Hệ thống đào tạo Full-Stack lập trình</p>
+          </div>
+          <div class="receipt-title-block">
+            <h2 class="receipt-title">BIÊN LAI HỌC PHÍ</h2>
+            <span class="receipt-code">${record.invoiceCode}</span>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <div class="info-block">
+            <h3>Thông tin người nộp</h3>
+            <div class="info-row">
+              <span class="info-label">Học viên:</span>
+              <span class="info-val">${record.studentNameSnapshot}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Mã học viên:</span>
+              <span class="info-val">${record.studentCodeSnapshot || '—'}</span>
+            </div>
+          </div>
+          <div class="info-block">
+            <h3>Thông tin lớp học</h3>
+            <div class="info-row">
+              <span class="info-label">Khóa học:</span>
+              <span class="info-val">${record.courseNameSnapshot}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Lớp học:</span>
+              <span class="info-val">${record.classNameSnapshot || '—'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="receipt-table">
+            <thead>
+              <tr>
+                <th>Nội dung thanh toán</th>
+                <th class="align-right">Số tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Học phí khóa học <strong>${record.courseNameSnapshot}</strong> (${record.classNameSnapshot || 'Lớp học'})</td>
+                <td class="align-right">${formatVnd(record.totalAmount)}</td>
+              </tr>
+              <tr class="total-row">
+                <td class="align-right" style="color: #64748b; font-weight: 500;">Tổng học phí:</td>
+                <td class="align-right" style="font-weight: 600;">${formatVnd(record.totalAmount)}</td>
+              </tr>
+              <tr class="total-row">
+                <td class="align-right" style="color: #64748b; font-weight: 500;">Số tiền đã đóng:</td>
+                <td class="align-right" style="color: #16a34a; font-weight: 600;">${formatVnd(record.paidAmount || 0)}</td>
+              </tr>
+              <tr class="total-row">
+                <td class="align-right grand-total">Công nợ còn lại:</td>
+                <td class="align-right grand-total">${formatVnd(remaining)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="info-section">
+          <div class="info-block" style="grid-column: span 2;">
+            <h3>Chi tiết công nợ</h3>
+            <div class="info-row">
+              <span class="info-label">Hạn thanh toán:</span>
+              <span class="info-val" style="color: #dc2626;">${new Date(record.dueDate).toLocaleDateString('vi-VN')}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Trạng thái:</span>
+              <span class="info-val">${statusLabel}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Tỷ lệ hoàn thành:</span>
+              <span class="info-val">${paidProgress}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="signature-section">
+          <div class="signature-block">
+            <span class="signature-title">Người nộp tiền</span>
+            <span class="signature-name">${record.studentNameSnapshot}</span>
+          </div>
+          <div class="signature-block">
+            <span class="signature-title">Người thu tiền (Ký, họ tên)</span>
+            <span class="signature-name">Thủ quỹ EduCenter</span>
+          </div>
+        </div>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+    printWindow.close()
+  }, 500)
 }
 
 async function handleExecuteAction() {

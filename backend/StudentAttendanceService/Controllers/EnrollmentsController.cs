@@ -50,6 +50,14 @@ public sealed class EnrollmentsController(IEnrollmentService service) : Controll
     [HttpPut("{id:guid}/start-study"), Authorize(Roles = "Admin")] public async Task<IActionResult> StartStudy(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Studying, BearerToken(), ct)));
     [HttpPut("{id:guid}/cancel"), Authorize(Roles = "Admin")] public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Cancelled, BearerToken(), ct)));
     [HttpPut("{id:guid}/complete"), Authorize(Roles = "Admin,Teacher")] public async Task<IActionResult> Complete(Guid id, CancellationToken ct) => Ok(ApiResponse<EnrollmentResponse>.Ok(await service.SetStatusAsync(id, EnrollmentStatus.Completed, BearerToken(), ct)));
+    
+    [HttpPut("{id:guid}"), Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Update(Guid id, UpdateEnrollmentRequest request, CancellationToken ct) =>
+        Ok(ApiResponse<EnrollmentResponse>.Ok(await service.UpdateAsync(id, request, ct), "Updated"));
+
+    [HttpPut("bulk-assign"), Authorize(Roles = "Admin")]
+    public async Task<IActionResult> BulkAssign(BulkAssignRequest request, CancellationToken ct) =>
+        Ok(ApiResponse<IReadOnlyList<EnrollmentResponse>>.Ok(await service.BulkAssignAsync(request, BearerToken(), ct), "Bulk assigned"));
     [HttpPut("bulk-confirm"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> BulkConfirm(BulkDeleteRequest request, CancellationToken ct)
     {

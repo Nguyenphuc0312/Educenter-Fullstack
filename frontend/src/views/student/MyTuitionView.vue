@@ -179,12 +179,18 @@
           </div>
 
           <h3 class="font-bold text-slate-800 mb-3">Mức thanh toán</h3>
-          <div v-if="canChoosePartial" class="grid grid-cols-2 gap-3 mb-6">
-            <button type="button" class="py-3 rounded-lg border text-sm font-bold transition-colors" :class="paymentPercent === 50 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'" @click="paymentPercent = 50">
-              Thanh toán 50%
+          <div v-if="canChoosePartial" class="grid grid-cols-4 gap-2 mb-6">
+            <button type="button" class="py-2.5 rounded-lg border text-xs font-bold transition-colors" :class="paymentPercent === 25 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'" @click="paymentPercent = 25">
+              25%
             </button>
-            <button type="button" class="py-3 rounded-lg border text-sm font-bold transition-colors" :class="paymentPercent === 100 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'" @click="paymentPercent = 100">
-              Thanh toán toàn bộ
+            <button type="button" class="py-2.5 rounded-lg border text-xs font-bold transition-colors" :class="paymentPercent === 50 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'" @click="paymentPercent = 50">
+              50%
+            </button>
+            <button type="button" class="py-2.5 rounded-lg border text-xs font-bold transition-colors" :class="paymentPercent === 75 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'" @click="paymentPercent = 75">
+              75%
+            </button>
+            <button type="button" class="py-2.5 rounded-lg border text-xs font-bold transition-colors" :class="paymentPercent === 100 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'" @click="paymentPercent = 100">
+              100%
             </button>
           </div>
           <div v-else class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -302,7 +308,9 @@ const paymentAmount = computed(() => {
   const debt = Number(selectedInvoice.value?.debtAmount || 0);
   const total = Number(selectedInvoice.value?.totalAmount || 0);
   if (!canChoosePartial.value) return debt;
-  return paymentPercent.value === 50 ? Math.min(Math.round(total * 0.5), debt) : debt;
+  if (paymentPercent.value === 100) return debt;
+  const factor = paymentPercent.value / 100;
+  return Math.min(Math.round(total * factor), debt);
 });
 const transferContent = computed(() => `EDU ${selectedInvoice.value?.invoiceCode || ""}`.trim());
 const pendingInvoiceIds = computed(() => new Set(

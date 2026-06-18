@@ -168,10 +168,63 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
         var course = await courses.GetByIdAsync(request.CourseId, cancellationToken) ?? throw NotFound("Course");
         var teacher = await teachers.GetByIdAsync(request.TeacherId, cancellationToken) ?? throw NotFound("Teacher");
         ValidateCapacity(request.MaxStudents, request.CurrentStudents);
+        
+        Classroom? classroom = null;
+        if (request.ClassroomId.HasValue && request.ClassroomId.Value != Guid.Empty)
+        {
+            classroom = await db.Classrooms.FindAsync([request.ClassroomId.Value], cancellationToken) ?? throw NotFound("Classroom");
+        }
+
         var classCode = string.IsNullOrWhiteSpace(request.ClassCode) ? await GenerateClassCodeAsync(cancellationToken) : request.ClassCode.Trim().ToUpperInvariant();
         if (await classes.AnyAsync(x => x.ClassCode == classCode, cancellationToken)) throw Conflict("Class code already exists");
         var now = DateTime.UtcNow;
-        var entity = new Class { Id = Guid.NewGuid(), CourseId = course.Id, CourseNameSnapshot = course.Name, ClassCode = classCode, ClassName = request.ClassName, TeacherId = teacher.Id, TeacherNameSnapshot = teacher.FullName, Room = request.Room, MaxStudents = request.MaxStudents, CurrentStudents = request.CurrentStudents, StartDate = request.StartDate, EndDate = request.EndDate, LearningMode = request.LearningMode, Status = request.Status, CreatedAt = now, UpdatedAt = now };
+        var entity = new Class { Id = Guid.NewGuid(), CourseId = course.Id, CourseNameSnapshot = course.Name, ClassCode = classCode, ClassName = request.ClassName, TeacherId = teacher.Id, TeacherNameSnapshot = teacher.FullName, Room = classroom?.Code ?? request.Room ?? string.Empty, ClassroomId = classroom?.Id, MinStudents = request.MinStudents, MaxStudents = request.MaxStudents, CurrentStudents = request.CurrentStudents, StartDate = request.StartDate, EndDate = request.EndDate, LearningMode = request.LearningMode, Status = request.Status, CreatedAt = now, UpdatedAt = now };
+        
+        if (request.DaysOfWeek is not null && request.DaysOfWeek.Length > 0)
+        {
+            var dayOfWeekSet = request.DaysOfWeek.Select(x => (DayOfWeek)x).ToHashSet();
+            var totalSessions = course.TotalSessions;
+            var currentDate = request.StartDate.Date;
+            var shift = request.StudyShift ?? StudyShift.Morning;
+            var startTime = TimeOnly.Parse(request.StartTime ?? "08:00");
+            var endTime = TimeOnly.Parse(request.EndTime ?? "10:00");
+            
+            var generatedSchedules = new List<Schedule>();
+            var sessionCount = 0;
+            while (sessionCount < totalSessions)
+            {
+                if (dayOfWeekSet.Contains(currentDate.DayOfWeek))
+                {
+                    sessionCount++;
+                    generatedSchedules.Add(new Schedule
+                    {
+                        Id = Guid.NewGuid(),
+                        ClassId = entity.Id,
+                        ClassNameSnapshot = entity.ClassName,
+                        Class = entity,
+                        DayOfWeek = currentDate.DayOfWeek,
+                        StudyShift = shift,
+                        StartTime = startTime,
+                        EndTime = endTime,
+                        Room = entity.Room,
+                        Topic = $"Buổi {sessionCount}",
+                        SessionNumber = sessionCount,
+                        Status = ScheduleStatus.Scheduled,
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                        TeacherId = entity.TeacherId,
+                        TeacherNameSnapshot = entity.TeacherNameSnapshot
+                    });
+                }
+                currentDate = currentDate.AddDays(1);
+            }
+            entity.Schedules = generatedSchedules;
+            if (generatedSchedules.Count > 0)
+            {
+                entity.EndDate = request.StartDate.Date.AddDays((currentDate - request.StartDate.Date).Days - 1);
+            }
+        }
+
         ApplyLifecycleStatus(entity, now);
         await classes.AddAsync(entity, cancellationToken);
         await classes.SaveChangesAsync(cancellationToken);
@@ -184,7 +237,75 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
         var course = await courses.GetByIdAsync(request.CourseId, cancellationToken) ?? throw NotFound("Course");
         var teacher = await teachers.GetByIdAsync(request.TeacherId, cancellationToken) ?? throw NotFound("Teacher");
         ValidateCapacity(request.MaxStudents, request.CurrentStudents);
-        entity.CourseId = course.Id; entity.CourseNameSnapshot = course.Name; entity.ClassCode = request.ClassCode; entity.ClassName = request.ClassName; entity.TeacherId = teacher.Id; entity.TeacherNameSnapshot = teacher.FullName; entity.Room = request.Room; entity.MaxStudents = request.MaxStudents; entity.CurrentStudents = request.CurrentStudents; entity.StartDate = request.StartDate; entity.EndDate = request.EndDate; entity.LearningMode = request.LearningMode; entity.Status = request.Status; entity.UpdatedAt = DateTime.UtcNow;
+        
+        Classroom? classroom = null;
+        if (request.ClassroomId.HasValue && request.ClassroomId.Value != Guid.Empty)
+        {
+            classroom = await db.Classrooms.FindAsync([request.ClassroomId.Value], cancellationToken) ?? throw NotFound("Classroom");
+        }
+
+        entity.CourseId = course.Id; 
+        entity.CourseNameSnapshot = course.Name; 
+        entity.ClassCode = request.ClassCode; 
+        entity.ClassName = request.ClassName; 
+        entity.TeacherId = teacher.Id; 
+        entity.TeacherNameSnapshot = teacher.FullName; 
+        entity.Room = classroom?.Code ?? request.Room ?? string.Empty; 
+        entity.ClassroomId = classroom?.Id;
+        entity.MinStudents = request.MinStudents;
+        entity.MaxStudents = request.MaxStudents; 
+        entity.CurrentStudents = request.CurrentStudents; 
+        entity.StartDate = request.StartDate; 
+        entity.EndDate = request.EndDate; 
+        entity.LearningMode = request.LearningMode; 
+        entity.Status = request.Status; 
+        entity.UpdatedAt = DateTime.UtcNow;
+        
+        if (request.DaysOfWeek is not null && request.DaysOfWeek.Length > 0)
+        {
+            var existing = await db.Schedules.Where(x => x.ClassId == entity.Id).ToListAsync(cancellationToken);
+            db.Schedules.RemoveRange(existing);
+            
+            var dayOfWeekSet = request.DaysOfWeek.Select(x => (DayOfWeek)x).ToHashSet();
+            var totalSessions = course.TotalSessions;
+            var currentDate = request.StartDate.Date;
+            var shift = request.StudyShift ?? StudyShift.Morning;
+            var startTime = TimeOnly.Parse(request.StartTime ?? "08:00");
+            var endTime = TimeOnly.Parse(request.EndTime ?? "10:00");
+            
+            var sessionCount = 0;
+            while (sessionCount < totalSessions)
+            {
+                if (dayOfWeekSet.Contains(currentDate.DayOfWeek))
+                {
+                    sessionCount++;
+                    db.Schedules.Add(new Schedule
+                    {
+                        Id = Guid.NewGuid(),
+                        ClassId = entity.Id,
+                        ClassNameSnapshot = entity.ClassName,
+                        DayOfWeek = currentDate.DayOfWeek,
+                        StudyShift = shift,
+                        StartTime = startTime,
+                        EndTime = endTime,
+                        Room = entity.Room,
+                        Topic = $"Buổi {sessionCount}",
+                        SessionNumber = sessionCount,
+                        Status = ScheduleStatus.Scheduled,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                        TeacherId = entity.TeacherId,
+                        TeacherNameSnapshot = entity.TeacherNameSnapshot
+                    });
+                }
+                currentDate = currentDate.AddDays(1);
+            }
+            if (sessionCount > 0)
+            {
+                entity.EndDate = request.StartDate.Date.AddDays((currentDate - request.StartDate.Date).Days - 1);
+            }
+        }
+
         ApplyLifecycleStatus(entity, DateTime.UtcNow);
         classes.Update(entity);
         await classes.SaveChangesAsync(cancellationToken);
@@ -284,8 +405,8 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
     private static bool ApplyLifecycleStatus(Class entity, DateTime now)
     {
         if (entity.Status == ClassStatus.Cancelled) return false;
-        var next = entity.EndDate < now ? ClassStatus.Completed
-            : entity.StartDate <= now ? ClassStatus.InProgress
+        var next = entity.EndDate < now && entity.CurrentStudents >= entity.MinStudents ? ClassStatus.Completed
+            : entity.StartDate <= now && entity.CurrentStudents >= entity.MinStudents ? ClassStatus.InProgress
             : entity.CurrentStudents >= entity.MaxStudents ? ClassStatus.Full
             : ClassStatus.Open;
         if (entity.Status == next) return false;
@@ -394,5 +515,162 @@ public sealed class TeacherService(IRepository<Teacher> teachers) : ITeacherServ
         var entity = await teachers.GetByIdAsync(id, cancellationToken) ?? throw new AppException("Teacher not found", StatusCodes.Status404NotFound);
         teachers.Remove(entity);
         await teachers.SaveChangesAsync(cancellationToken);
+    }
+}
+
+public interface IClassroomService
+{
+    Task<IReadOnlyList<ClassroomResponse>> GetAllAsync(CancellationToken cancellationToken);
+    Task<ClassroomResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<ClassroomResponse> CreateAsync(CreateClassroomRequest request, CancellationToken cancellationToken);
+    Task<ClassroomResponse> UpdateAsync(Guid id, UpdateClassroomRequest request, CancellationToken cancellationToken);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken);
+}
+
+public sealed class ClassroomService(IRepository<Classroom> classrooms) : IClassroomService
+{
+    public async Task<IReadOnlyList<ClassroomResponse>> GetAllAsync(CancellationToken cancellationToken) =>
+        await classrooms.Query().OrderBy(x => x.Code).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
+
+    public async Task<ClassroomResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        (await classrooms.GetByIdAsync(id, cancellationToken) ?? throw new AppException("Classroom not found", StatusCodes.Status404NotFound)).ToResponse();
+
+    public async Task<ClassroomResponse> CreateAsync(CreateClassroomRequest request, CancellationToken cancellationToken)
+    {
+        var code = request.Code.Trim().ToUpperInvariant();
+        if (await classrooms.AnyAsync(x => x.Code == code, cancellationToken))
+            throw new AppException("Classroom code already exists", StatusCodes.Status409Conflict);
+
+        var now = DateTime.UtcNow;
+        var entity = new Classroom
+        {
+            Id = Guid.NewGuid(),
+            Code = code,
+            Name = request.Name.Trim(),
+            Building = request.Building.Trim(),
+            Floor = request.Floor.Trim(),
+            Capacity = request.Capacity,
+            Type = request.Type,
+            Status = request.Status,
+            Description = request.Description,
+            HasProjector = request.HasProjector,
+            HasAirConditioner = request.HasAirConditioner,
+            IsOnline = request.IsOnline,
+            OnlineMeetingUrl = request.OnlineMeetingUrl,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        await classrooms.AddAsync(entity, cancellationToken);
+        await classrooms.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task<ClassroomResponse> UpdateAsync(Guid id, UpdateClassroomRequest request, CancellationToken cancellationToken)
+    {
+        var entity = await classrooms.GetByIdAsync(id, cancellationToken) ?? throw new AppException("Classroom not found", StatusCodes.Status404NotFound);
+        
+        var code = request.Code.Trim().ToUpperInvariant();
+        if (await classrooms.Query().AnyAsync(x => x.Id != id && x.Code == code, cancellationToken))
+            throw new AppException("Classroom code already exists", StatusCodes.Status409Conflict);
+
+        entity.Code = code;
+        entity.Name = request.Name.Trim();
+        entity.Building = request.Building.Trim();
+        entity.Floor = request.Floor.Trim();
+        entity.Capacity = request.Capacity;
+        entity.Type = request.Type;
+        entity.Status = request.Status;
+        entity.Description = request.Description;
+        entity.HasProjector = request.HasProjector;
+        entity.HasAirConditioner = request.HasAirConditioner;
+        entity.IsOnline = request.IsOnline;
+        entity.OnlineMeetingUrl = request.OnlineMeetingUrl;
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        await classrooms.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var entity = await classrooms.GetByIdAsync(id, cancellationToken) ?? throw new AppException("Classroom not found", StatusCodes.Status404NotFound);
+        classrooms.Remove(entity);
+        await classrooms.SaveChangesAsync(cancellationToken);
+    }
+}
+
+public interface IScheduleChangeService
+{
+    Task<IReadOnlyList<ScheduleChangeResponse>> GetAllAsync(CancellationToken cancellationToken);
+    Task<ScheduleChangeResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<ScheduleChangeResponse> CreateAsync(CreateScheduleChangeRequest request, CancellationToken cancellationToken);
+    Task<ScheduleChangeResponse> UpdateStatusAsync(Guid id, ChangeRequestStatus status, CancellationToken cancellationToken);
+}
+
+public sealed class ScheduleChangeService(CourseDbContext db) : IScheduleChangeService
+{
+    public async Task<IReadOnlyList<ScheduleChangeResponse>> GetAllAsync(CancellationToken cancellationToken) =>
+        await db.Set<ScheduleChangeRequest>().OrderByDescending(x => x.CreatedAt).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
+
+    public async Task<ScheduleChangeResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        (await db.Set<ScheduleChangeRequest>().FindAsync([id], cancellationToken) ?? throw new AppException("Change request not found", StatusCodes.Status404NotFound)).ToResponse();
+
+    public async Task<ScheduleChangeResponse> CreateAsync(CreateScheduleChangeRequest request, CancellationToken cancellationToken)
+    {
+        var schedule = await db.Schedules.Include(s => s.Class).FirstOrDefaultAsync(s => s.Id == request.ScheduleId, cancellationToken) ?? throw new AppException("Schedule not found", StatusCodes.Status404NotFound);
+        var now = DateTime.UtcNow;
+        var entity = new ScheduleChangeRequest
+        {
+            Id = Guid.NewGuid(),
+            ScheduleId = request.ScheduleId,
+            Type = request.Type,
+            OriginalTeacherId = request.OriginalTeacherId,
+            OriginalTeacherName = request.OriginalTeacherName,
+            ProposedTeacherId = request.ProposedTeacherId,
+            ProposedTeacherName = request.ProposedTeacherName,
+            ProposedDayOfWeek = request.ProposedDayOfWeek,
+            ProposedStudyShift = request.ProposedStudyShift,
+            ProposedRoom = request.ProposedRoom,
+            Status = ChangeRequestStatus.Pending,
+            Reason = request.Reason,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.Set<ScheduleChangeRequest>().Add(entity);
+        await db.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task<ScheduleChangeResponse> UpdateStatusAsync(Guid id, ChangeRequestStatus status, CancellationToken cancellationToken)
+    {
+        var entity = await db.Set<ScheduleChangeRequest>().FindAsync([id], cancellationToken) ?? throw new AppException("Change request not found", StatusCodes.Status404NotFound);
+        if (entity.Status != ChangeRequestStatus.Pending) throw new AppException("Only pending change requests can be updated", StatusCodes.Status409Conflict);
+        
+        entity.Status = status;
+        entity.UpdatedAt = DateTime.UtcNow;
+        
+        if (status == ChangeRequestStatus.Approved)
+        {
+            var schedule = await db.Schedules.FindAsync([entity.ScheduleId], cancellationToken) ?? throw new AppException("Associated schedule not found", StatusCodes.Status404NotFound);
+            if (entity.Type == ScheduleChangeType.Substitution || entity.Type == ScheduleChangeType.Both)
+            {
+                if (entity.ProposedTeacherId.HasValue)
+                {
+                    schedule.TeacherId = entity.ProposedTeacherId.Value;
+                    schedule.TeacherNameSnapshot = entity.ProposedTeacherName;
+                }
+            }
+            if (entity.Type == ScheduleChangeType.Reschedule || entity.Type == ScheduleChangeType.Both)
+            {
+                if (entity.ProposedDayOfWeek.HasValue) schedule.DayOfWeek = entity.ProposedDayOfWeek.Value;
+                if (entity.ProposedStudyShift.HasValue) schedule.StudyShift = entity.ProposedStudyShift.Value;
+                if (!string.IsNullOrWhiteSpace(entity.ProposedRoom)) schedule.Room = entity.ProposedRoom;
+            }
+            schedule.UpdatedAt = DateTime.UtcNow;
+        }
+        
+        await db.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
     }
 }

@@ -144,8 +144,10 @@ public interface IEnrollmentService
     Task<IReadOnlyList<EnrollmentResponse>> ByClassAsync(Guid classId, CancellationToken cancellationToken);
     Task<IReadOnlyList<StudentResponse>> ClassStudentsAsync(Guid classId, CancellationToken cancellationToken);
     Task<EnrollmentResponse> CreateAsync(CreateEnrollmentRequest request, CancellationToken cancellationToken);
+    Task<EnrollmentResponse> UpdateAsync(Guid id, UpdateEnrollmentRequest request, CancellationToken cancellationToken);
     Task<EnrollmentResponse> ConfirmAsync(Guid id, string? bearerToken, CancellationToken cancellationToken);
     Task<EnrollmentResponse> SetStatusAsync(Guid id, EnrollmentStatus status, string? bearerToken, CancellationToken cancellationToken);
+    Task<IReadOnlyList<EnrollmentResponse>> BulkAssignAsync(BulkAssignRequest request, string? bearerToken, CancellationToken cancellationToken);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
@@ -226,10 +228,12 @@ public sealed class ClassCapacityClient(HttpClient httpClient) : IClassCapacityC
 public interface IPaymentInvoiceClient
 {
     Task CreateInvoiceForEnrollmentAsync(Enrollment enrollment, decimal tuitionFee, string? bearerToken, CancellationToken cancellationToken);
+    Task<bool> IsLockedAsync(Guid studentId, CancellationToken cancellationToken);
 }
 
 public sealed class PaymentInvoiceClient(HttpClient httpClient) : IPaymentInvoiceClient
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private sealed record CreateInvoiceFromEnrollmentRequest(Guid EnrollmentId, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal TotalAmount, DateTime DueDate);
 
     public async Task CreateInvoiceForEnrollmentAsync(Enrollment enrollment, decimal tuitionFee, string? bearerToken, CancellationToken cancellationToken)
@@ -242,6 +246,22 @@ public sealed class PaymentInvoiceClient(HttpClient httpClient) : IPaymentInvoic
         if (response.IsSuccessStatusCode) return;
         var detail = await response.Content.ReadAsStringAsync(cancellationToken);
         throw new AppException($"Cannot create tuition invoice. Payment service returned {(int)response.StatusCode}: {detail}", StatusCodes.Status502BadGateway);
+    }
+
+    public async Task<bool> IsLockedAsync(Guid studentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync($"/api/tuition-invoices/is-locked/{studentId}", cancellationToken);
+            if (!response.IsSuccessStatusCode) return false;
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var payload = await JsonSerializer.DeserializeAsync<ApiResponse<bool>>(stream, JsonOptions, cancellationToken);
+            return payload?.Data ?? false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
 
@@ -338,6 +358,37 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
         return entity.ToResponse();
     }
 
+    public async Task<EnrollmentResponse> UpdateAsync(Guid id, UpdateEnrollmentRequest request, CancellationToken cancellationToken)
+    {
+        var entity = await enrollments.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Enrollment");
+        entity.ClassId = request.ClassId;
+        entity.ClassNameSnapshot = request.ClassNameSnapshot;
+        entity.Status = request.Status;
+        entity.Note = request.Note;
+        entity.UpdatedAt = DateTime.UtcNow;
+        await enrollments.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task<IReadOnlyList<EnrollmentResponse>> BulkAssignAsync(BulkAssignRequest request, string? bearerToken, CancellationToken cancellationToken)
+    {
+        var result = new List<EnrollmentResponse>();
+        foreach (var id in request.EnrollmentIds.Distinct())
+        {
+            var entity = await enrollments.GetByIdAsync(id, cancellationToken);
+            if (entity is null) continue;
+
+            entity.ClassId = request.ClassId;
+            entity.ClassNameSnapshot = request.ClassNameSnapshot;
+            entity.UpdatedAt = DateTime.UtcNow;
+            await enrollments.SaveChangesAsync(cancellationToken);
+
+            var confirmed = await ConfirmAsync(entity.Id, bearerToken, cancellationToken);
+            result.Add(confirmed);
+        }
+        return result;
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var entity = await enrollments.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Enrollment");
@@ -430,7 +481,7 @@ public interface IAttendanceService
     Task<AttendanceSummaryResponse> StudentSummaryAsync(Guid studentId, CancellationToken cancellationToken);
 }
 
-public sealed class AttendanceService(IRepository<AttendanceSession> sessions, IRepository<AttendanceRecord> records, IRepository<Enrollment> enrollments, IRepository<Student> students, IClassCapacityClient classCapacity) : IAttendanceService
+public sealed class AttendanceService(IRepository<AttendanceSession> sessions, IRepository<AttendanceRecord> records, IRepository<Enrollment> enrollments, IRepository<Student> students, IClassCapacityClient classCapacity, IPaymentInvoiceClient paymentInvoices) : IAttendanceService
 {
     public async Task<IReadOnlyList<AttendanceSessionResponse>> SessionsByClassAsync(Guid classId, CancellationToken cancellationToken) => await sessions.Query().Where(x => x.ClassId == classId).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<AttendanceSessionResponse> GetSessionAsync(Guid id, CancellationToken cancellationToken) => (await sessions.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Attendance session")).ToResponse();
@@ -483,6 +534,13 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
         foreach (var item in request.Records)
         {
             if (!await enrollments.AnyAsync(x => x.StudentId == item.StudentId && x.ClassId == session.ClassId && (x.Status == EnrollmentStatus.Confirmed || x.Status == EnrollmentStatus.Studying), cancellationToken)) throw Conflict("Only confirmed or studying students can be marked");
+            
+            // Check if student has overdue debt and locked attendance
+            if (await paymentInvoices.IsLockedAsync(item.StudentId, cancellationToken))
+            {
+                throw Conflict($"Student is locked from attendance check-in due to overdue tuition debt.");
+            }
+
             var student = await students.GetByIdAsync(item.StudentId, cancellationToken) ?? throw NotFound("Student");
             var existing = await records.Query().FirstOrDefaultAsync(x => x.AttendanceSessionId == request.AttendanceSessionId && x.StudentId == item.StudentId, cancellationToken);
             if (existing is null)
@@ -501,6 +559,13 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
     {
         var entity = await records.Query().Include(x => x.AttendanceSession).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Attendance record");
         if (entity.AttendanceSession?.Status == AttendanceSessionStatus.Locked) throw Conflict("Attendance session is locked");
+
+        // Check if student has overdue debt and locked attendance
+        if (await paymentInvoices.IsLockedAsync(entity.StudentId, cancellationToken))
+        {
+            throw Conflict($"Student is locked from attendance check-in due to overdue tuition debt.");
+        }
+
         entity.Status = request.Status; entity.Note = request.Note; entity.MarkedAt = DateTime.UtcNow;
         await records.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();

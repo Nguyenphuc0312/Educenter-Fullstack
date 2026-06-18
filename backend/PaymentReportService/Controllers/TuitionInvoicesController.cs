@@ -69,6 +69,23 @@ public sealed class TuitionInvoicesController(IInvoiceService service) : Control
         return Ok(ApiResponse<object>.Ok(new { requested = request.Ids.Count, succeeded = request.Ids.Distinct().Count() }, "Bulk deleted"));
     }
 
+    [HttpGet("is-locked/{studentId:guid}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> IsLocked(Guid studentId, CancellationToken ct)
+    {
+        var invoices = await service.ByStudentAsync(studentId, ct);
+        var isLocked = invoices.Any(x => x.Status == InvoiceStatus.Overdue || (x.DueDate.Date < DateTime.UtcNow.Date && x.DebtAmount > 0));
+        return Ok(ApiResponse<bool>.Ok(isLocked));
+    }
+
+    [HttpPost("{id:guid}/send-debt-notice")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SendDebtNotice(Guid id, CancellationToken ct)
+    {
+        await service.SendDebtReminderAsync(id, ct);
+        return Ok(ApiResponse<object>.Ok(null, "Đã gửi thông báo nhắc nợ qua email thành công."));
+    }
+
     private Guid? StudentReferenceId()
     {
         var value = User.FindFirstValue("referenceId");

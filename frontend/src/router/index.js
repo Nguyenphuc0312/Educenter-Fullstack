@@ -39,6 +39,7 @@ const TeacherProfile = () => import("../views/teacher/ProfileView.vue");
 const AdminDashboard = () => import("../views/admin/DashboardView.vue");
 const AdminCourses = () => import("../views/admin/CoursesView.vue");
 const AdminClasses = () => import("../views/admin/ClassesView.vue");
+const AdminClassrooms = () => import("../views/admin/ClassroomsView.vue");
 const AdminSchedules = () => import("../views/admin/SchedulesView.vue");
 const AdminTeachers = () => import("../views/admin/TeachersView.vue");
 const AdminStudents = () => import("../views/admin/StudentsView.vue");
@@ -163,6 +164,7 @@ const routes = [
       { path: "dashboard", name: "admin-dashboard", component: AdminDashboard },
       { path: "courses", name: "admin-courses", component: AdminCourses },
       { path: "classes", name: "admin-classes", component: AdminClasses },
+      { path: "classrooms", name: "admin-classrooms", component: AdminClassrooms },
       { path: "schedules", name: "admin-schedules", component: AdminSchedules },
       { path: "teachers", name: "admin-teachers", component: AdminTeachers },
       { path: "students", name: "admin-students", component: AdminStudents },

@@ -95,7 +95,7 @@
         <a-menu-item
           v-if="enrollmentStatusValue(record.status) === 1"
           class="rounded-lg px-3 py-2 text-xs"
-          @click="triggerConfirmOne(record.id, refresh)"
+          @click="openAssignConfirmModal(record, refresh)"
         >
           Xác nhận ghi danh
         </a-menu-item>
@@ -171,6 +171,46 @@
       :loading="confirmLoading"
       @confirm="handleExecuteAction"
     />
+
+    <!-- Custom Confirm & Assign Class Modal -->
+    <a-modal
+      v-model:open="assignConfirmOpen"
+      title="Xác nhận ghi danh & xếp lớp"
+      :width="480"
+      :centered="true"
+      :destroy-on-close="true"
+      @ok="handleExecuteAssignConfirm"
+      :confirm-loading="assignConfirmLoading"
+      ok-text="Xác nhận & xếp lớp"
+      cancel-text="Hủy"
+    >
+      <div class="space-y-4 py-2 text-xs">
+        <div>
+          <span class="font-semibold text-base-secondary">Học viên:</span>
+          <span class="ml-1 font-semibold text-base-primary">{{ selectedEnrollment?.studentNameSnapshot }}</span>
+        </div>
+        <div>
+          <span class="font-semibold text-base-secondary">Khóa học:</span>
+          <span class="ml-1 text-base-primary">{{ selectedEnrollment?.courseNameSnapshot }}</span>
+        </div>
+        <a-form-item label="Lớp học xếp vào" required class="mb-0">
+          <a-select
+            v-model:value="selectedTargetClassId"
+            placeholder="Chọn lớp học trống..."
+            class="w-full"
+            :loading="loadingClasses"
+          >
+            <a-select-option
+              v-for="cls in filteredClassesForSelectedCourse"
+              :key="cls.id"
+              :value="cls.id"
+            >
+              {{ cls.className || cls.name }} (Sĩ số: {{ cls.currentStudents }}/{{ cls.maxStudents }})
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -218,6 +258,17 @@ const confirmMsg = ref('')
 const confirmType = ref('warning')
 const confirmLoading = ref(false)
 let confirmActionCallback = null
+
+const assignConfirmOpen = ref(false)
+const assignConfirmLoading = ref(false)
+const selectedEnrollment = ref(null)
+const selectedTargetClassId = ref(undefined)
+let assignConfirmRefreshCallback = null
+
+const filteredClassesForSelectedCourse = computed(() => {
+  if (!selectedEnrollment.value) return []
+  return classes.value.filter(c => c.courseId === selectedEnrollment.value.courseId && c.status !== 4 && c.status !== 'Cancelled')
+})
 
 const ENROLLMENT_STATUS_VALUE = {
   Pending: 1,
@@ -346,6 +397,41 @@ function triggerConfirmOne(id, refresh) {
     refresh()
   }
   confirmOpen.value = true
+}
+
+function openAssignConfirmModal(record, refresh) {
+  selectedEnrollment.value = record
+  selectedTargetClassId.value = record.classId || undefined
+  assignConfirmRefreshCallback = refresh
+  assignConfirmOpen.value = true
+}
+
+async function handleExecuteAssignConfirm() {
+  if (!selectedTargetClassId.value) {
+    message.warning('Vui lòng chọn lớp học')
+    return
+  }
+  const selectedClass = classes.value.find(c => c.id === selectedTargetClassId.value)
+  if (!selectedClass) return
+
+  assignConfirmLoading.value = true
+  try {
+    await enrollmentApi.update(selectedEnrollment.value.id, {
+      ...selectedEnrollment.value,
+      classId: selectedTargetClassId.value,
+      classNameSnapshot: selectedClass.className || selectedClass.name,
+    })
+
+    await enrollmentApi.confirm(selectedEnrollment.value.id)
+
+    message.success('Đã xác nhận ghi danh & xếp lớp thành công')
+    assignConfirmOpen.value = false
+    if (assignConfirmRefreshCallback) assignConfirmRefreshCallback()
+  } catch (error) {
+    message.error(error.message || 'Không thể xác nhận ghi danh')
+  } finally {
+    assignConfirmLoading.value = false
+  }
 }
 
 function triggerCompleteOne(id, refresh) {

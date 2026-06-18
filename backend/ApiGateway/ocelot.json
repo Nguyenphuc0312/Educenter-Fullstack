@@ -1,4 +1,4 @@
-﻿{
+{
   "Routes": [
     {
       "DownstreamPathTemplate": "/api/auth/{everything}",
@@ -34,6 +34,13 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
       "UpstreamPathTemplate": "/gateway/teachers/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/classrooms/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "UpstreamPathTemplate": "/gateway/classrooms/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
     },
     {

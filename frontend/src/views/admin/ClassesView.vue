@@ -230,6 +230,7 @@ import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import { classApi } from '@/api/classApi'
 import { courseApi } from '@/api/courseApi'
 import { teacherApi } from '@/api/teacherApi'
+import { classroomApi } from '@/api/classroomApi'
 import { CLASS_STATUS, LEARNING_MODE, toOptions } from '@/lib/constants'
 import { getInitials } from '@/lib/formatters'
 
@@ -253,6 +254,7 @@ const learningModeOptions = toOptions(LEARNING_MODE)
 
 const courses = ref([])
 const teachers = ref([])
+const classrooms = ref([])
 
 const filterCourseId = ref(undefined)
 const filterTeacherId = ref(undefined)
@@ -290,7 +292,7 @@ const fields = [
   { name: 'classCode', label: 'Mã lớp', required: true, editOnly: true, default: '' },
   { name: 'className', label: 'Tên lớp', required: true, default: '' },
   { name: 'teacherId', label: 'Giảng viên', type: 'select', options: [], required: true, default: '' },
-  { name: 'room', label: 'Phòng học', required: true, default: '' },
+  { name: 'classroomId', label: 'Phòng học', type: 'select', options: [], required: false, default: null },
   { name: 'maxStudents', label: 'Sĩ số tối đa', type: 'number', required: true, default: 30 },
   { name: 'currentStudents', label: 'Sĩ số hiện tại', type: 'number', default: 0 },
   { name: 'startDate', label: 'Ngày bắt đầu', type: 'date', default: '' },
@@ -306,7 +308,7 @@ const formGroups = [
   },
   {
     title: 'Giáo viên & Địa điểm học',
-    fields: ['teacherId', 'room', 'learningMode']
+    fields: ['teacherId', 'classroomId', 'learningMode']
   },
   {
     title: 'Quy mô học viên',
@@ -429,12 +431,14 @@ function scheduleHint(start, end) {
 
 async function loadFilterDependencies() {
   try {
-    const [coursesRes, teachersRes] = await Promise.all([
+    const [coursesRes, teachersRes, classroomsRes] = await Promise.all([
       courseApi.getAll(),
-      teacherApi.getAll()
+      teacherApi.getAll(),
+      classroomApi.getAll()
     ])
     courses.value = coursesRes?.items || coursesRes?.data || coursesRes || []
     teachers.value = teachersRes?.items || teachersRes?.data || teachersRes || []
+    classrooms.value = classroomsRes?.items || classroomsRes?.data || classroomsRes || []
     fields.find(field => field.name === 'courseId').options = courses.value.map(course => ({
       value: course.id,
       label: `${course.code || '---'} - ${course.name}`,
@@ -442,6 +446,10 @@ async function loadFilterDependencies() {
     fields.find(field => field.name === 'teacherId').options = teachers.value.map(teacher => ({
       value: teacher.id,
       label: teacher.fullName,
+    }))
+    fields.find(field => field.name === 'classroomId').options = classrooms.value.map(c => ({
+      value: c.id,
+      label: `${c.code} - ${c.name} (${c.capacity} chỗ)`
     }))
   } catch (error) {
     // Fail silently

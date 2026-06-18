@@ -187,6 +187,14 @@
             class="enterprise-table"
             :pagination="false"
             :scroll="{ y: 460 }"
+            :row-class-name="(record, index) => focusedRowIndex === index ? 'active-attendance-row bg-blue-50/30 dark:bg-blue-950/20' : ''"
+            :custom-row="(record, index) => ({
+              onClick: () => {
+                if (!sessionLocked(selectedSession) && !record.isLocked) {
+                  focusedRowIndex = index
+                }
+              }
+            })"
           >
             <template #bodyCell="{ column, record, index }">
               <template v-if="column.key === 'index'">
@@ -199,7 +207,12 @@
                     {{ getInitials(record.studentNameSnapshot) }}
                   </div>
                   <div class="min-w-0 flex flex-col">
-                    <span class="font-bold text-slate-800 text-[13px] truncate" :title="record.studentNameSnapshot">{{ record.studentNameSnapshot }}</span>
+                    <span class="font-bold text-slate-800 text-[13px] truncate flex items-center gap-2" :title="record.studentNameSnapshot">
+                      {{ record.studentNameSnapshot }}
+                      <span v-if="record.isLocked" class="text-[9px] bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-black flex items-center gap-0.5 shrink-0" title="Học viên bị khóa điểm danh do nợ học phí quá hạn">
+                        🔒 Khóa điểm danh (Nợ học phí)
+                      </span>
+                    </span>
                     <span class="text-[10px] text-slate-500 font-mono">{{ record.studentId.substring(0,8).toUpperCase() }}...</span>
                   </div>
                 </div>
@@ -210,7 +223,7 @@
                   v-model:value="record.status" 
                   class="w-[140px] custom-status-select" 
                   :class="getStatusSelectClass(record.status)"
-                  :disabled="!selectedSession || sessionLocked(selectedSession)"
+                  :disabled="!selectedSession || sessionLocked(selectedSession) || record.isLocked"
                   :bordered="false"
                 >
                   <a-select-option value="Present"><span class="font-bold text-emerald-700">✓ Có mặt</span></a-select-option>
@@ -225,7 +238,7 @@
                   v-model:value="record.note" 
                   placeholder="Nhập lý do..." 
                   class="text-xs bg-slate-50 border-slate-200 focus:bg-white rounded-lg py-1.5"
-                  :disabled="!selectedSession || sessionLocked(selectedSession)" 
+                  :disabled="!selectedSession || sessionLocked(selectedSession) || record.isLocked" 
                 />
               </template>
             </template>
@@ -267,7 +280,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { message } from 'ant-design-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
@@ -276,6 +289,7 @@ import { classApi } from '@/api/classApi'
 import { scheduleApi } from '@/api/scheduleApi'
 import { enrollmentApi } from '@/api/enrollmentApi'
 import { attendanceApi } from '@/api/attendanceApi'
+import { tuitionApi } from '@/api/tuitionApi'
 import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/lib/formatters'
 
@@ -287,6 +301,7 @@ const creatingSession = ref(false)
 const saving = ref(false)
 const locking = ref(false)
 const isConfirmLockOpen = ref(false)
+const focusedRowIndex = ref(-1)
 
 const classes = ref([])
 const schedules = ref([])
@@ -423,12 +438,14 @@ async function createSession() {
 async function selectSession(session) {
   selectedSessionId.value = session.id
   loadingRecords.value = true
+  focusedRowIndex.value = -1
   try {
     const data = await attendanceApi.getRecordsBySession(session.id)
+    let tempRecords = []
     if (data?.length) {
-      records.value = data.map(x => ({ ...x, status: normalizedStatus(x.status) }))
+      tempRecords = data.map(x => ({ ...x, status: normalizedStatus(x.status) }))
     } else {
-      records.value = activeEnrollments().map(x => ({
+      tempRecords = activeEnrollments().map(x => ({
         id: null,
         attendanceSessionId: session.id,
         studentId: x.studentId,
@@ -436,6 +453,29 @@ async function selectSession(session) {
         status: 'Present',
         note: ''
       }))
+    }
+
+    // Load lock statuses concurrently
+    const lockStatuses = await Promise.all(
+      tempRecords.map(async (r) => {
+        try {
+          const res = await tuitionApi.isLocked(r.studentId)
+          return { studentId: r.studentId, isLocked: res === true || res?.data === true || res?.data?.data === true }
+        } catch (e) {
+          return { studentId: r.studentId, isLocked: false }
+        }
+      })
+    )
+    const lockMap = new Map(lockStatuses.map(x => [x.studentId, x.isLocked]))
+    records.value = tempRecords.map(r => ({
+      ...r,
+      isLocked: lockMap.get(r.studentId) || false
+    }))
+
+    if (records.value.length > 0) {
+      // Focus the first non-locked student, or first student
+      const firstActive = records.value.findIndex(r => !r.isLocked)
+      focusedRowIndex.value = firstActive !== -1 ? firstActive : 0
     }
   } catch (err) {
     message.error('Không thể tải danh sách học viên.')
@@ -488,7 +528,64 @@ async function executeLockSession() {
 }
 
 watch(() => props.classId, (value) => { if (value) selectedClassId.value = value })
-onMounted(loadBaseData)
+
+function handleKeyDown(e) {
+  if (!selectedSession.value || sessionLocked(selectedSession.value)) return
+  if (focusedRowIndex.value < 0 || focusedRowIndex.value >= records.value.length) return
+
+  // Skip keyboard shortcuts if typing inside inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+    return
+  }
+
+  const activeRecord = records.value[focusedRowIndex.value]
+  if (activeRecord.isLocked) {
+    // Skip checking locked students and advance to next row
+    focusedRowIndex.value = (focusedRowIndex.value + 1) % records.value.length
+    return
+  }
+
+  let matched = false
+  const key = e.key.toLowerCase()
+
+  if (key === 'c') {
+    activeRecord.status = 'Present'
+    matched = true
+  } else if (key === 'v' || (e.ctrlKey && key === 'v')) {
+    activeRecord.status = 'Absent'
+    matched = true
+  } else if (key === 'm') {
+    activeRecord.status = 'Late'
+    matched = true
+  } else if (key === 'p') {
+    activeRecord.status = 'Excused'
+    matched = true
+  } else if (e.key === 'ArrowDown') {
+    focusedRowIndex.value = (focusedRowIndex.value + 1) % records.value.length
+    e.preventDefault()
+  } else if (e.key === 'ArrowUp') {
+    focusedRowIndex.value = (focusedRowIndex.value - 1 + records.value.length) % records.value.length
+    e.preventDefault()
+  }
+
+  if (matched) {
+    message.success(`Đã đánh dấu ${activeRecord.studentNameSnapshot}: ${
+      { Present: 'Có mặt', Absent: 'Vắng mặt', Late: 'Đi muộn', Excused: 'Có phép' }[activeRecord.status]
+    }`)
+    // Auto advance focus to the next row
+    focusedRowIndex.value = (focusedRowIndex.value + 1) % records.value.length
+    e.preventDefault()
+  }
+}
+
+onMounted(() => {
+  loadBaseData()
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
 </script>
 
 <style scoped>
@@ -543,5 +640,10 @@ onMounted(loadBaseData)
 }
 :deep(.enterprise-table .ant-table-tbody > tr:hover > td) {
   background-color: #f8fafc !important;
+}
+:deep(.enterprise-table .ant-table-tbody > tr.active-attendance-row > td) {
+  background-color: #eff6ff !important;
+  border-top: 1.5px solid #3b82f6 !important;
+  border-bottom: 1.5px solid #3b82f6 !important;
 }
 </style>

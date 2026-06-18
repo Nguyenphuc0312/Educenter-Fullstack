@@ -422,11 +422,25 @@ const UserIcon = {
   ])
 };
 
+const Building = {
+  render: () => h('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+    h('rect', { width: '16', height: '20', x: '4', y: '2', rx: '2', ry: '2' }),
+    h('line', { x1: '9', x2: '9', y1: '22', y2: '16' }),
+    h('line', { x1: '15', x2: '15', y1: '22', y2: '16' }),
+    h('line', { x1: '9', x2: '15', y1: '16', y2: '16' }),
+    h('path', { d: 'M8 6h2v2H8V6z' }),
+    h('path', { d: 'M14 6h2v2h-2V6z' }),
+    h('path', { d: 'M8 10h2v2H8v-2z' }),
+    h('path', { d: 'M14 10h2v2h-2v-2z' })
+  ])
+};
+
 const mapIcon = (iconName) => {
   switch (iconName) {
     case 'LayoutDashboard': return LayoutDashboard;
     case 'BookOpen': return BookOpen;
     case 'Users': return Users;
+    case 'Building': return Building;
     case 'Calendar': return Calendar;
     case 'Award': return Award;
     case 'GraduationCap': return GraduationCap;
@@ -448,6 +462,7 @@ const generalItems = [
 const courseScheduleItems = [
   { to: 'courses', label: 'Khóa học', icon: BookOpen },
   { to: 'classes', label: 'Lớp học', icon: Users },
+  { to: 'classrooms', label: 'Phòng học', icon: Building },
   { to: 'schedules', label: 'Lịch học', icon: Calendar },
   { to: 'teachers', label: 'Giảng viên', icon: Award }
 ];

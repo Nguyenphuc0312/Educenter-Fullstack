@@ -15,6 +15,8 @@ export const ACCOUNT_STATUS = { 1: 'Hoạt động', 2: 'Bị khóa' }
 export const STUDENT_STATUS = { 1: 'Hoạt động', 2: 'Không hoạt động', 3: 'Tạm dừng' }
 export const TEACHER_STATUS = { 0: 'Hoạt động', 1: 'Không hoạt động' }
 export const SESSION_STATUS = { 1: 'Đang mở', 2: 'Đã khóa' }
+export const CLASSROOM_TYPE = { 0: 'Lý thuyết', 1: 'Phòng máy', 2: 'Hội thảo', 3: 'Trực tuyến' }
+export const CLASSROOM_STATUS = { 0: 'Sẵn sàng', 1: 'Đang sử dụng', 2: 'Đang bảo trì', 3: 'Đã đóng' }
 export const DAY_OF_WEEK_VN = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
 
 /**
@@ -56,7 +58,12 @@ export const STATUS_LOCALES = {
   // Payment status
   Success:      { label: 'Thành công',   color: 'green' },
   Processing:   { label: 'Đang xử lý',  color: 'blue' },
-  Failed:       { label: 'Thất bại',     color: 'red' }
+  Failed:       { label: 'Thất bại',     color: 'red' },
+  // Classroom status
+  Available:    { label: 'Sẵn sàng',     color: 'green' },
+  InUse:        { label: 'Đang sử dụng',  color: 'blue' },
+  Maintenance:  { label: 'Đang bảo trì',  color: 'orange' },
+  Closed:       { label: 'Đã đóng',       color: 'slate' }
 }
 
 export const ROLE_INT = { Admin: 1, Teacher: 2, Student: 3 }

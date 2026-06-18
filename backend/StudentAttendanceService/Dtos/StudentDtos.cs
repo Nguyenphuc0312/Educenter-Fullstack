@@ -47,6 +47,21 @@ public sealed class CreateEnrollmentRequest
     public string? Note { get; set; }
 }
 
+public sealed class UpdateEnrollmentRequest
+{
+    [Required] public Guid ClassId { get; set; }
+    [Required] public string ClassNameSnapshot { get; set; } = string.Empty;
+    public EnrollmentStatus Status { get; set; }
+    public string? Note { get; set; }
+}
+
+public sealed class BulkAssignRequest
+{
+    [Required] public List<Guid> EnrollmentIds { get; set; } = [];
+    [Required] public Guid ClassId { get; set; }
+    [Required] public string ClassNameSnapshot { get; set; } = string.Empty;
+}
+
 public sealed class CreateAttendanceSessionRequest
 {
     [Required] public Guid ClassId { get; set; }
