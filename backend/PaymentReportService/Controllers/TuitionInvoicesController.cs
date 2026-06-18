@@ -53,6 +53,16 @@ public sealed class TuitionInvoicesController(IInvoiceService service) : Control
         return Ok(ApiResponse<BulkOperationResult<TuitionInvoiceResponse>>.Ok(new() { Items = items, Requested = requests.Count, Succeeded = items.Count }, "Bulk updated"));
     }
     [HttpPut("{id:guid}/mark-overdue"), Authorize(Roles = "Admin")] public async Task<IActionResult> MarkOverdue(Guid id, CancellationToken ct) => Ok(ApiResponse<TuitionInvoiceResponse>.Ok(await service.MarkOverdueAsync(id, ct)));
+    [HttpPut("scan-overdue"), Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ScanOverdue(CancellationToken ct) => Ok(ApiResponse<OverdueScanResponse>.Ok(await service.ScanOverdueAsync(ct), "Overdue scan completed"));
+    [HttpGet("learning-holds"), Authorize(Roles = "Admin,Teacher")]
+    public async Task<IActionResult> LearningHolds([FromQuery] Guid? studentId, [FromQuery] Guid? classId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<LearningHoldResponse>>.Ok(await service.LearningHoldsAsync(studentId, classId, ct)));
+    [HttpGet("learning-holds/by-student/{studentId:guid}"), Authorize(Roles = "Admin,Student")]
+    public async Task<IActionResult> LearningHoldsByStudent(Guid studentId, CancellationToken ct)
+    {
+        if (User.IsInRole(nameof(UserRole.Student)) && StudentReferenceId() != studentId) return Forbid();
+        return Ok(ApiResponse<IReadOnlyList<LearningHoldResponse>>.Ok(await service.LearningHoldsAsync(studentId, null, ct)));
+    }
     [HttpPut("bulk-mark-overdue"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> BulkMarkOverdue(BulkDeleteRequest request, CancellationToken ct)
     {

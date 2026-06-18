@@ -51,16 +51,28 @@
           <label for="password" class="text-xs font-semibold text-base-primary">
             Mật khẩu <span class="text-red-500">*</span>
           </label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            required
-            placeholder="••••••••"
-            autocomplete="current-password"
-            :disabled="isLoading"
-            class="w-full px-4 py-3 text-sm rounded-xl border border-base bg-card-base text-base-primary placeholder:text-base-muted focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all disabled:opacity-55"
-          />
+          <div class="relative">
+            <input
+              id="password"
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              required
+              placeholder="********"
+              autocomplete="current-password"
+              :disabled="isLoading"
+              class="w-full px-4 py-3 pr-11 text-sm rounded-xl border border-base bg-card-base text-base-primary placeholder:text-base-muted focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all disabled:opacity-55"
+            />
+            <button
+              type="button"
+              class="absolute inset-y-0 right-3 flex items-center text-base-muted hover:text-base-primary disabled:opacity-50"
+              :disabled="isLoading"
+              :aria-label="showPassword ? 'Hide password' : 'Show password'"
+              @click="showPassword = !showPassword"
+            >
+              <svg v-if="showPassword" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58M9.88 4.24A10.46 10.46 0 0112 4c5 0 9 4.5 10 8a11.72 11.72 0 01-3.1 4.74M6.11 6.11C4.11 7.45 2.75 9.7 2 12c1 3.5 5 8 10 8 1.36 0 2.65-.33 3.8-.9" /></svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+            </button>
+          </div>
         </div>
 
         <div class="text-right">
@@ -112,6 +124,7 @@ const authStore = useAuthStore()
 
 const username = ref('')
 const password = ref('')
+const showPassword = ref(false)
 const errorMsg = ref('')
 
 const isLoading = computed(() => authStore.isLoading)

@@ -72,9 +72,7 @@
         <div class="flex items-center gap-2 flex-wrap flex-1 min-w-0">
           <a-input
             v-if="showSearch"
-            :value="searchText"
-            @input="$emit('update:searchText', $event.target.value)"
-            @press-enter="$emit('search', searchText)"
+            v-model:value="searchText"
             :placeholder="searchPlaceholder"
             allow-clear
             class="admin-search w-full sm:w-64"
@@ -218,6 +216,7 @@
                 :record="record"
                 :show-edit="!!api?.update && canEdit(record)"
                 :show-delete="!!api?.delete && canDelete(record)"
+                :show-extra="props.hasRowActions(record)"
                 @edit="openEdit"
                 @delete="handleDelete"
               >
@@ -287,18 +286,21 @@
                   :rows="field.rows || 3"
                   :placeholder="field.placeholder || field.label"
                   class="text-xs"
+                  :disabled="resolveFieldDisabled(field)"
                 />
                 <a-input-number
                   v-else-if="field.type === 'number'"
                   v-model:value="formState[field.name]"
                   class="w-full text-xs"
                   :min="field.min ?? 0"
+                  :disabled="resolveFieldDisabled(field)"
                 />
                 <a-date-picker
                   v-else-if="field.type === 'date'"
                   v-model:value="formState[field.name]"
                   class="w-full text-xs"
                   value-format="YYYY-MM-DD"
+                  :disabled="resolveFieldDisabled(field)"
                 />
                 <a-select
                   v-else-if="field.type === 'select'"
@@ -321,12 +323,20 @@
                   </a-select-option>
                 </a-select>
                 <a-switch v-else-if="field.type === 'switch'" v-model:checked="formState[field.name]" />
+                <a-input-password
+                  v-else-if="field.type === 'password'"
+                  v-model:value="formState[field.name]"
+                  :placeholder="field.placeholder || field.label"
+                  class="text-xs"
+                  :disabled="resolveFieldDisabled(field)"
+                />
                 <a-input
                   v-else
                   v-model:value="formState[field.name]"
                   :type="field.type || 'text'"
                   :placeholder="field.placeholder || field.label"
                   class="text-xs"
+                  :disabled="resolveFieldDisabled(field)"
                 />
               </a-form-item>
             </div>
@@ -422,7 +432,10 @@ const sortState = reactive({
 
 // Group form fields for modular rendering
 const computedGroups = computed(() => {
-  const visibleFields = props.fields.filter((field) => !field.hidden && (!field.editOnly || editingRecord.value))
+  const visibleFields = props.fields.filter((field) => {
+    const hidden = typeof field.hidden === 'function' ? field.hidden(formState, editingRecord.value) : field.hidden
+    return !hidden && (!field.editOnly || editingRecord.value)
+  })
   if (props.formGroups && props.formGroups.length > 0) {
     return props.formGroups.map((group) => ({
       title: group.title,
@@ -630,10 +643,16 @@ watch([searchText, statusFilter], () => {
   currentPage.value = 1
 })
 
+watch(totalItems, () => {
+  const maxPage = Math.max(1, Math.ceil(totalItems.value / pageSize.value))
+  if (currentPage.value > maxPage) currentPage.value = maxPage
+})
+
 function resetForm(record = null) {
   Object.keys(formState).forEach((key) => delete formState[key])
   props.fields.forEach((field) => {
-    formState[field.name] = normalizeSelectValue(field, record?.[field.name] ?? field.default ?? null)
+    const fallback = record && Object.prototype.hasOwnProperty.call(field, 'editDefault') ? field.editDefault : field.default
+    formState[field.name] = normalizeSelectValue(field, record?.[field.name] ?? fallback ?? null)
   })
 }
 
@@ -673,7 +692,7 @@ function normalizeSelectValue(field, value) {
 }
 
 function resolveFieldOptions(field) {
-  return typeof field.options === 'function' ? field.options(formState) : field.options || []
+  return typeof field.options === 'function' ? field.options(formState, editingRecord.value) : field.options || []
 }
 
 function resolveFieldDisabled(field) {
@@ -787,6 +806,8 @@ function formatDayOfWeek(value) {
   }
   return labels[value] || value || '-'
 }
+
+defineExpose({ fetchItems })
 
 onMounted(fetchItems)
 </script>

@@ -1,0 +1,91 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: educenter-demo-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "EduCenter@123456"
+    ports:
+      - "14330:1433"
+    volumes:
+      - educenter-demo-sql-data:/var/opt/mssql
+
+  course-service:
+    build:
+      context: .
+      dockerfile: CourseScheduleService/Dockerfile
+    container_name: educenter-demo-course-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5001"
+      ConnectionStrings__CourseDB: "Server=sqlserver,1433;Database=CourseDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+    ports:
+      - "5001:5001"
+    depends_on:
+      - sqlserver
+
+  student-service:
+    build:
+      context: .
+      dockerfile: StudentAttendanceService/Dockerfile
+    container_name: educenter-demo-student-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5002"
+      ConnectionStrings__StudentDB: "Server=sqlserver,1433;Database=StudentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+      ServiceUrls__CourseSchedule: "http://course-service:5001"
+      ServiceUrls__PaymentReport: "http://payment-service:5003"
+    ports:
+      - "5002:5002"
+    depends_on:
+      - sqlserver
+      - course-service
+      - payment-service
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: PaymentReportService/Dockerfile
+    container_name: educenter-demo-payment-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5003"
+      ConnectionStrings__PaymentDB: "Server=sqlserver,1433;Database=PaymentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
+      ServiceUrls__StudentAttendance: "http://student-service:5002"
+    ports:
+      - "5003:5003"
+    depends_on:
+      - sqlserver
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ApiGateway/Dockerfile
+    container_name: educenter-demo-api-gateway
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5000"
+      ServiceUrls__PaymentReport: "http://payment-service:5003"
+      Routes__0__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__1__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__2__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__3__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__4__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__5__DownstreamHostAndPorts__0__Host: "course-service"
+      Routes__6__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__7__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__8__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__9__DownstreamHostAndPorts__0__Host: "student-service"
+      Routes__10__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__11__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__12__DownstreamHostAndPorts__0__Host: "payment-service"
+      Routes__13__DownstreamHostAndPorts__0__Host: "payment-service"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - course-service
+      - student-service
+      - payment-service
+
+volumes:
+  educenter-demo-sql-data:

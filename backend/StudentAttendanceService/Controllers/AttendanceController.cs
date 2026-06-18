@@ -23,9 +23,15 @@ public sealed class AttendanceController(IAttendanceService service) : Controlle
     [Authorize]
     public async Task<IActionResult> RecordsByStudent(Guid studentId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<AttendanceRecordResponse>>.Ok(await service.RecordsByStudentAsync(studentId, ct)));
     [HttpPost("api/attendance-records/bulk")]
-    public async Task<IActionResult> Bulk(BulkAttendanceRecordRequest request, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<AttendanceRecordResponse>>.Ok(await service.BulkAsync(request, ct), "Saved"));
+    public async Task<IActionResult> Bulk(BulkAttendanceRecordRequest request, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<AttendanceRecordResponse>>.Ok(await service.BulkAsync(request, BearerToken(), ct), "Saved"));
     [HttpPut("api/attendance-records/{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, UpdateAttendanceRecordRequest request, CancellationToken ct) => Ok(ApiResponse<AttendanceRecordResponse>.Ok(await service.UpdateRecordAsync(id, request, ct)));
+    public async Task<IActionResult> Update(Guid id, UpdateAttendanceRecordRequest request, CancellationToken ct) => Ok(ApiResponse<AttendanceRecordResponse>.Ok(await service.UpdateRecordAsync(id, request, BearerToken(), ct)));
     [HttpDelete("api/attendance-records/{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) { await service.DeleteRecordAsync(id, ct); return Ok(ApiResponse<object>.Ok(null, "Deleted")); }
+
+    private string? BearerToken()
+    {
+        var authorization = Request.Headers.Authorization.ToString();
+        return authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? authorization["Bearer ".Length..].Trim() : null;
+    }
 }

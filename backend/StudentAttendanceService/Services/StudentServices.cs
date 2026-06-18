@@ -245,6 +245,32 @@ public sealed class PaymentInvoiceClient(HttpClient httpClient) : IPaymentInvoic
     }
 }
 
+public interface IPaymentLearningHoldClient
+{
+    Task<bool> HasLearningHoldAsync(Guid studentId, Guid classId, string? bearerToken, CancellationToken cancellationToken);
+}
+
+public sealed class PaymentLearningHoldClient(HttpClient httpClient) : IPaymentLearningHoldClient
+{
+    public async Task<bool> HasLearningHoldAsync(Guid studentId, Guid classId, string? bearerToken, CancellationToken cancellationToken)
+    {
+        var url = $"/api/tuition-invoices/learning-holds?studentId={studentId}&classId={classId}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (!string.IsNullOrWhiteSpace(bearerToken)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new AppException($"Cannot validate tuition learning hold. Payment service returned {(int)response.StatusCode}: {detail}", StatusCodes.Status502BadGateway);
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var payload = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        if (!payload.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array) return false;
+        return data.GetArrayLength() > 0;
+    }
+}
+
 public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IRepository<AttendanceSession> attendanceSessions, IRepository<AttendanceRecord> attendanceRecords, IClassCapacityClient classCapacity, IPaymentInvoiceClient paymentInvoices) : IEnrollmentService
 {
     public async Task<IReadOnlyList<EnrollmentResponse>> GetAllAsync(CancellationToken cancellationToken)
@@ -423,14 +449,14 @@ public interface IAttendanceService
     Task<AttendanceSessionResponse> LockSessionAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyList<AttendanceRecordResponse>> RecordsBySessionAsync(Guid sessionId, CancellationToken cancellationToken);
     Task<IReadOnlyList<AttendanceRecordResponse>> RecordsByStudentAsync(Guid studentId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<AttendanceRecordResponse>> BulkAsync(BulkAttendanceRecordRequest request, CancellationToken cancellationToken);
-    Task<AttendanceRecordResponse> UpdateRecordAsync(Guid id, UpdateAttendanceRecordRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AttendanceRecordResponse>> BulkAsync(BulkAttendanceRecordRequest request, string? bearerToken, CancellationToken cancellationToken);
+    Task<AttendanceRecordResponse> UpdateRecordAsync(Guid id, UpdateAttendanceRecordRequest request, string? bearerToken, CancellationToken cancellationToken);
     Task DeleteRecordAsync(Guid id, CancellationToken cancellationToken);
     Task<AttendanceSummaryResponse> ClassSummaryAsync(Guid classId, CancellationToken cancellationToken);
     Task<AttendanceSummaryResponse> StudentSummaryAsync(Guid studentId, CancellationToken cancellationToken);
 }
 
-public sealed class AttendanceService(IRepository<AttendanceSession> sessions, IRepository<AttendanceRecord> records, IRepository<Enrollment> enrollments, IRepository<Student> students, IClassCapacityClient classCapacity) : IAttendanceService
+public sealed class AttendanceService(IRepository<AttendanceSession> sessions, IRepository<AttendanceRecord> records, IRepository<Enrollment> enrollments, IRepository<Student> students, IClassCapacityClient classCapacity, IPaymentLearningHoldClient learningHolds) : IAttendanceService
 {
     public async Task<IReadOnlyList<AttendanceSessionResponse>> SessionsByClassAsync(Guid classId, CancellationToken cancellationToken) => await sessions.Query().Where(x => x.ClassId == classId).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<AttendanceSessionResponse> GetSessionAsync(Guid id, CancellationToken cancellationToken) => (await sessions.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Attendance session")).ToResponse();
@@ -475,7 +501,7 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
     }
     public async Task<IReadOnlyList<AttendanceRecordResponse>> RecordsBySessionAsync(Guid sessionId, CancellationToken cancellationToken) => await records.Query().Where(x => x.AttendanceSessionId == sessionId).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<IReadOnlyList<AttendanceRecordResponse>> RecordsByStudentAsync(Guid studentId, CancellationToken cancellationToken) => await records.Query().Where(x => x.StudentId == studentId).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
-    public async Task<IReadOnlyList<AttendanceRecordResponse>> BulkAsync(BulkAttendanceRecordRequest request, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<AttendanceRecordResponse>> BulkAsync(BulkAttendanceRecordRequest request, string? bearerToken, CancellationToken cancellationToken)
     {
         var session = await sessions.GetByIdAsync(request.AttendanceSessionId, cancellationToken) ?? throw NotFound("Attendance session");
         if (session.Status == AttendanceSessionStatus.Locked) throw Conflict("Attendance session is locked");
@@ -483,6 +509,7 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
         foreach (var item in request.Records)
         {
             if (!await enrollments.AnyAsync(x => x.StudentId == item.StudentId && x.ClassId == session.ClassId && (x.Status == EnrollmentStatus.Confirmed || x.Status == EnrollmentStatus.Studying), cancellationToken)) throw Conflict("Only confirmed or studying students can be marked");
+            await EnsureAttendanceAllowedAsync(item.StudentId, session.ClassId, bearerToken, cancellationToken);
             var student = await students.GetByIdAsync(item.StudentId, cancellationToken) ?? throw NotFound("Student");
             var existing = await records.Query().FirstOrDefaultAsync(x => x.AttendanceSessionId == request.AttendanceSessionId && x.StudentId == item.StudentId, cancellationToken);
             if (existing is null)
@@ -497,10 +524,12 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
         await records.SaveChangesAsync(cancellationToken);
         return await RecordsBySessionAsync(request.AttendanceSessionId, cancellationToken);
     }
-    public async Task<AttendanceRecordResponse> UpdateRecordAsync(Guid id, UpdateAttendanceRecordRequest request, CancellationToken cancellationToken)
+    public async Task<AttendanceRecordResponse> UpdateRecordAsync(Guid id, UpdateAttendanceRecordRequest request, string? bearerToken, CancellationToken cancellationToken)
     {
         var entity = await records.Query().Include(x => x.AttendanceSession).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Attendance record");
         if (entity.AttendanceSession?.Status == AttendanceSessionStatus.Locked) throw Conflict("Attendance session is locked");
+        var classId = entity.AttendanceSession?.ClassId ?? throw NotFound("Attendance session");
+        await EnsureAttendanceAllowedAsync(entity.StudentId, classId, bearerToken, cancellationToken);
         entity.Status = request.Status; entity.Note = request.Note; entity.MarkedAt = DateTime.UtcNow;
         await records.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();
@@ -549,6 +578,10 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
         if (expectedRows <= 0) return 0;
         decimal score = rows.Sum(x => x.Status switch { AttendanceStatus.Present => 1m, AttendanceStatus.Late => 0.5m, AttendanceStatus.Excused => 0.5m, _ => 0m });
         return Math.Round(score / expectedRows * 100, 2);
+    }
+    private async Task EnsureAttendanceAllowedAsync(Guid studentId, Guid classId, string? bearerToken, CancellationToken cancellationToken)
+    {
+        if (await learningHolds.HasLearningHoldAsync(studentId, classId, bearerToken, cancellationToken)) throw Conflict("Học viên đang bị khóa điểm danh do quá hạn học phí");
     }
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);

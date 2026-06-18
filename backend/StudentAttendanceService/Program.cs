@@ -30,6 +30,10 @@ builder.Services.AddHttpClient<IPaymentInvoiceClient, PaymentInvoiceClient>(clie
 {
     client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:PaymentReport"] ?? "http://127.0.0.1:5003");
 });
+builder.Services.AddHttpClient<IPaymentLearningHoldClient, PaymentLearningHoldClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:PaymentReport"] ?? "http://127.0.0.1:5003");
+});
 
 var app = builder.Build();
 

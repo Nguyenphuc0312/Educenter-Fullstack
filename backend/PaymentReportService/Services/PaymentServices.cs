@@ -138,22 +138,29 @@ public interface IAccountService
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
-public sealed class AccountService(IRepository<UserAccount> accounts, IAuthService auth) : IAccountService
+public sealed class AccountService(IRepository<UserAccount> accounts, IAuthService auth, IPasswordHasher hasher) : IAccountService
 {
     public async Task<IReadOnlyList<AccountResponse>> GetAllAsync(CancellationToken cancellationToken) => await accounts.Query().OrderBy(x => x.Username).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<AccountResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) => (await accounts.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Account")).ToResponse();
-    public Task<AccountResponse> CreateAsync(CreateAccountRequest request, CancellationToken cancellationToken) => auth.RegisterAsync(request, cancellationToken);
+    public Task<AccountResponse> CreateAsync(CreateAccountRequest request, CancellationToken cancellationToken)
+    {
+        if (request.Role == UserRole.Admin) throw Conflict("Admin accounts must be provisioned by system seed or database administration");
+        return auth.RegisterAsync(request, cancellationToken);
+    }
     public async Task<AccountResponse> UpdateAsync(Guid id, UpdateAccountRequest request, CancellationToken cancellationToken)
     {
         var user = await accounts.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Account");
         if (await accounts.Query().AnyAsync(x => x.Id != id && x.Email == request.Email, cancellationToken)) throw Conflict("Email already exists");
-        user.FullName = request.FullName; user.Email = request.Email; user.Phone = request.Phone; user.Role = request.Role; user.ReferenceId = request.ReferenceId; user.UpdatedAt = DateTime.UtcNow;
+        user.FullName = request.FullName; user.Email = request.Email; user.Phone = request.Phone;
+        if (!string.IsNullOrWhiteSpace(request.Password)) user.PasswordHash = hasher.Hash(request.Password.Trim());
+        user.UpdatedAt = DateTime.UtcNow;
         await accounts.SaveChangesAsync(cancellationToken);
         return user.ToResponse();
     }
     public async Task<AccountResponse> SetStatusAsync(Guid id, AccountStatus status, CancellationToken cancellationToken)
     {
         var user = await accounts.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Account");
+        if (user.Role == UserRole.Admin) throw Conflict("Admin accounts cannot be locked or unlocked from account management");
         user.Status = status; user.UpdatedAt = DateTime.UtcNow;
         await accounts.SaveChangesAsync(cancellationToken);
         return user.ToResponse();
@@ -161,6 +168,7 @@ public sealed class AccountService(IRepository<UserAccount> accounts, IAuthServi
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var user = await accounts.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Account");
+        if (user.Role == UserRole.Admin) throw Conflict("Admin accounts cannot be deleted");
         accounts.Remove(user);
         await accounts.SaveChangesAsync(cancellationToken);
     }
@@ -179,6 +187,8 @@ public interface IInvoiceService
     Task<TuitionInvoiceResponse> CreateFromEnrollmentAsync(CreateInvoiceFromEnrollmentRequest request, CancellationToken cancellationToken);
     Task<TuitionInvoiceResponse> UpdateAsync(Guid id, UpdateTuitionInvoiceRequest request, CancellationToken cancellationToken);
     Task<TuitionInvoiceResponse> MarkOverdueAsync(Guid id, CancellationToken cancellationToken);
+    Task<OverdueScanResponse> ScanOverdueAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<LearningHoldResponse>> LearningHoldsAsync(Guid? studentId, Guid? classId, CancellationToken cancellationToken);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
@@ -232,9 +242,60 @@ public sealed class InvoiceService(IRepository<TuitionInvoice> invoices) : IInvo
     public async Task<TuitionInvoiceResponse> MarkOverdueAsync(Guid id, CancellationToken cancellationToken)
     {
         var entity = await invoices.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Invoice");
+        if (entity.DebtAmount <= 0 || entity.Status == InvoiceStatus.Paid) throw Conflict("Paid invoices cannot be marked overdue");
+        if (!IsOverdueCandidate(entity, DateTime.UtcNow.Date)) throw Conflict("Invoice is not overdue yet");
         entity.Status = InvoiceStatus.Overdue; entity.UpdatedAt = DateTime.UtcNow;
         await invoices.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();
+    }
+    public async Task<OverdueScanResponse> ScanOverdueAsync(CancellationToken cancellationToken)
+    {
+        var today = DateTime.UtcNow.Date;
+        var candidates = await invoices.Query()
+            .Where(x => x.DebtAmount > 0 && x.Status != InvoiceStatus.Paid)
+            .ToListAsync(cancellationToken);
+        var updated = new List<TuitionInvoice>();
+        foreach (var invoice in candidates)
+        {
+            if (!IsOverdueCandidate(invoice, today) || invoice.Status == InvoiceStatus.Overdue) continue;
+            invoice.Status = InvoiceStatus.Overdue;
+            invoice.UpdatedAt = DateTime.UtcNow;
+            updated.Add(invoice);
+        }
+
+        if (updated.Count > 0) await invoices.SaveChangesAsync(cancellationToken);
+        return new OverdueScanResponse(candidates.Count, updated.Count, updated.Select(x => x.ToResponse()).ToList());
+    }
+    public async Task<IReadOnlyList<LearningHoldResponse>> LearningHoldsAsync(Guid? studentId, Guid? classId, CancellationToken cancellationToken)
+    {
+        var today = DateTime.UtcNow.Date;
+        var query = invoices.Query().Where(x => x.DebtAmount > 0 && x.Status != InvoiceStatus.Paid);
+        if (studentId.HasValue) query = query.Where(x => x.StudentId == studentId.Value);
+        if (classId.HasValue) query = query.Where(x => x.ClassId == classId.Value);
+
+        var rows = await query.ToListAsync(cancellationToken);
+        return rows
+            .Where(x => x.Status == InvoiceStatus.Overdue || IsOverdueCandidate(x, today))
+            .Select(x => new LearningHoldResponse(
+                x.Id,
+                x.EnrollmentId,
+                x.InvoiceCode,
+                x.StudentId,
+                x.StudentNameSnapshot,
+                x.CourseId,
+                x.CourseNameSnapshot,
+                x.ClassId,
+                x.ClassNameSnapshot,
+                x.DebtAmount,
+                x.DueDate,
+                x.PartialPaymentDueDate,
+                x.Status,
+                x.PartialPaymentDueDate.HasValue && x.PartialPaymentDueDate.Value.Date < today
+                    ? "Partial payment grace period expired"
+                    : "Tuition invoice overdue"))
+            .OrderBy(x => x.ClassNameSnapshot)
+            .ThenBy(x => x.StudentNameSnapshot)
+            .ToList();
     }
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -245,8 +306,18 @@ public sealed class InvoiceService(IRepository<TuitionInvoice> invoices) : IInvo
     public static void ApplyStatus(TuitionInvoice invoice)
     {
         invoice.DebtAmount = Math.Max(0, invoice.TotalAmount - invoice.PaidAmount);
-        invoice.Status = invoice.DebtAmount == 0 ? InvoiceStatus.Paid : invoice.PaidAmount > 0 ? InvoiceStatus.Partial : invoice.DueDate.Date < DateTime.UtcNow.Date ? InvoiceStatus.Overdue : InvoiceStatus.Unpaid;
+        invoice.Status = invoice.DebtAmount == 0
+            ? InvoiceStatus.Paid
+            : IsOverdueCandidate(invoice, DateTime.UtcNow.Date)
+                ? InvoiceStatus.Overdue
+                : invoice.PaidAmount > 0 ? InvoiceStatus.Partial : InvoiceStatus.Unpaid;
         if (invoice.Status == InvoiceStatus.Paid) invoice.PartialPaymentDueDate = null;
+    }
+    private static bool IsOverdueCandidate(TuitionInvoice invoice, DateTime today)
+    {
+        if (invoice.DebtAmount <= 0) return false;
+        if (invoice.PaidAmount > 0 && invoice.PartialPaymentDueDate.HasValue) return invoice.PartialPaymentDueDate.Value.Date < today;
+        return invoice.DueDate.Date < today;
     }
     private async Task<string> GenerateInvoiceCodeAsync(CancellationToken cancellationToken)
     {
@@ -285,6 +356,7 @@ public sealed class PaymentTransactionService(IRepository<PaymentTransaction> pa
     public async Task<PaymentTransactionResponse> CreateAsync(CreatePaymentRequest request, CancellationToken cancellationToken)
     {
         var invoice = await invoices.GetByIdAsync(request.InvoiceId, cancellationToken) ?? throw NotFound("Invoice");
+        if (request.Method == PaymentMethod.Cash) throw Conflict("Cash payments are not supported in this demo");
         if (request.Status == PaymentStatus.Success && request.Amount > invoice.DebtAmount) throw Conflict("Payment cannot exceed debt amount");
         var now = DateTime.UtcNow;
         var entity = new PaymentTransaction { Id = Guid.NewGuid(), InvoiceId = request.InvoiceId, Amount = request.Amount, Method = request.Method, PaymentDate = request.PaymentDate, Status = request.Status, Note = request.Note, CreatedBy = request.CreatedBy, CreatedAt = now, Invoice = invoice };
@@ -364,52 +436,22 @@ public sealed class ReportService(IRepository<TuitionInvoice> invoices, IReposit
 {
     public async Task<RevenueOverviewResponse> OverviewAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            var revenue = await payments.Query().Where(x => x.Status == PaymentStatus.Success).SumAsync(x => x.Amount, cancellationToken);
-            var debt = await invoices.Query().SumAsync(x => x.DebtAmount, cancellationToken);
-            return new RevenueOverviewResponse(revenue, debt, await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Paid, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Unpaid, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Partial, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Overdue, cancellationToken));
-        }
-        catch
-        {
-            return FallbackOverview();
-        }
+        var revenue = await payments.Query().Where(x => x.Status == PaymentStatus.Success).SumAsync(x => x.Amount, cancellationToken);
+        var debt = await invoices.Query().SumAsync(x => x.DebtAmount, cancellationToken);
+        return new RevenueOverviewResponse(revenue, debt, await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Paid, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Unpaid, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Partial, cancellationToken), await invoices.Query().CountAsync(x => x.Status == InvoiceStatus.Overdue, cancellationToken));
     }
     public async Task<IReadOnlyList<GroupAmountResponse>> RevenueByCourseAsync(CancellationToken cancellationToken)
     {
-        try { return await invoices.Query().GroupBy(x => new { x.CourseId, x.CourseNameSnapshot }).Select(g => new GroupAmountResponse(g.Key.CourseId, g.Key.CourseNameSnapshot, g.Sum(x => x.PaidAmount), g.Sum(x => x.DebtAmount))).ToListAsync(cancellationToken); }
-        catch { return FallbackCourseAmounts(); }
+        return await invoices.Query().GroupBy(x => new { x.CourseId, x.CourseNameSnapshot }).Select(g => new GroupAmountResponse(g.Key.CourseId, g.Key.CourseNameSnapshot, g.Sum(x => x.PaidAmount), g.Sum(x => x.DebtAmount))).ToListAsync(cancellationToken);
     }
     public async Task<IReadOnlyList<GroupAmountResponse>> RevenueByClassAsync(CancellationToken cancellationToken)
     {
-        try { return await invoices.Query().GroupBy(x => new { x.ClassId, x.ClassNameSnapshot }).Select(g => new GroupAmountResponse(g.Key.ClassId, g.Key.ClassNameSnapshot, g.Sum(x => x.PaidAmount), g.Sum(x => x.DebtAmount))).ToListAsync(cancellationToken); }
-        catch { return FallbackClassAmounts(); }
+        return await invoices.Query().GroupBy(x => new { x.ClassId, x.ClassNameSnapshot }).Select(g => new GroupAmountResponse(g.Key.ClassId, g.Key.ClassNameSnapshot, g.Sum(x => x.PaidAmount), g.Sum(x => x.DebtAmount))).ToListAsync(cancellationToken);
     }
     public async Task<IReadOnlyList<GroupAmountResponse>> DebtByStudentAsync(CancellationToken cancellationToken)
     {
-        try { return await invoices.Query().GroupBy(x => new { x.StudentId, x.StudentNameSnapshot }).Select(g => new GroupAmountResponse(g.Key.StudentId, g.Key.StudentNameSnapshot, g.Sum(x => x.PaidAmount), g.Sum(x => x.DebtAmount))).ToListAsync(cancellationToken); }
-        catch { return FallbackStudentAmounts(); }
+        return await invoices.Query().GroupBy(x => new { x.StudentId, x.StudentNameSnapshot }).Select(g => new GroupAmountResponse(g.Key.StudentId, g.Key.StudentNameSnapshot, g.Sum(x => x.PaidAmount), g.Sum(x => x.DebtAmount))).ToListAsync(cancellationToken);
     }
     public async Task<IReadOnlyList<GroupAmountResponse>> DebtByClassAsync(CancellationToken cancellationToken) => await RevenueByClassAsync(cancellationToken);
     public async Task<DashboardResponse> DashboardAsync(CancellationToken cancellationToken) => new(await OverviewAsync(cancellationToken), await RevenueByCourseAsync(cancellationToken), await DebtByClassAsync(cancellationToken));
-
-    private static RevenueOverviewResponse FallbackOverview() => new(24800000, 13200000, 3, 5, 4, 2);
-    private static IReadOnlyList<GroupAmountResponse> FallbackCourseAmounts() =>
-    [
-        new(Guid.Parse("22222222-2222-2222-2222-000000000001"), "ReactJS Cơ bản", 6200000, 1500000),
-        new(Guid.Parse("22222222-2222-2222-2222-000000000002"), "VueJS Cơ bản", 5400000, 2600000),
-        new(Guid.Parse("22222222-2222-2222-2222-000000000003"), "ASP.NET Core API", 8300000, 4100000)
-    ];
-    private static IReadOnlyList<GroupAmountResponse> FallbackClassAmounts() =>
-    [
-        new(Guid.Parse("33333333-3333-3333-3333-000000000001"), "Class 1", 3700000, 3100000),
-        new(Guid.Parse("33333333-3333-3333-3333-000000000002"), "Class 2", 3200000, 6400000),
-        new(Guid.Parse("33333333-3333-3333-3333-000000000003"), "Class 3", 3300000, 6600000)
-    ];
-    private static IReadOnlyList<GroupAmountResponse> FallbackStudentAmounts() =>
-    [
-        new(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-000000000001"), "Student 01", 2500000, 0),
-        new(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-000000000002"), "Student 02", 1200000, 1300000),
-        new(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-000000000003"), "Student 03", 0, 2500000)
-    ];
 }

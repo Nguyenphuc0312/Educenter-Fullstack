@@ -172,6 +172,7 @@
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Vắng: <span class="font-bold text-rose-700">{{ stats.absent }}</span></div>
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Muộn: <span class="font-bold text-amber-700">{{ stats.late }}</span></div>
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Phép: <span class="font-bold text-blue-700">{{ stats.excused }}</span></div>
+          <div v-if="stats.locked" class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-700"></span> Kh?a h?c ph?: <span class="font-bold text-rose-700">{{ stats.locked }}</span></div>
         </div>
 
         <div class="flex-1 overflow-auto custom-scrollbar relative">
@@ -201,6 +202,7 @@
                   <div class="min-w-0 flex flex-col">
                     <span class="font-bold text-slate-800 text-[13px] truncate" :title="record.studentNameSnapshot">{{ record.studentNameSnapshot }}</span>
                     <span class="text-[10px] text-slate-500 font-mono">{{ record.studentId.substring(0,8).toUpperCase() }}...</span>
+                    <span v-if="isAttendanceLocked(record)" class="mt-1 inline-flex w-fit items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">Khóa học phí</span>
                   </div>
                 </div>
               </template>
@@ -210,7 +212,7 @@
                   v-model:value="record.status" 
                   class="w-[140px] custom-status-select" 
                   :class="getStatusSelectClass(record.status)"
-                  :disabled="!selectedSession || sessionLocked(selectedSession)"
+                  :disabled="!selectedSession || sessionLocked(selectedSession) || isAttendanceLocked(record)"
                   :bordered="false"
                 >
                   <a-select-option value="Present"><span class="font-bold text-emerald-700">✓ Có mặt</span></a-select-option>
@@ -225,7 +227,7 @@
                   v-model:value="record.note" 
                   placeholder="Nhập lý do..." 
                   class="text-xs bg-slate-50 border-slate-200 focus:bg-white rounded-lg py-1.5"
-                  :disabled="!selectedSession || sessionLocked(selectedSession)" 
+                  :disabled="!selectedSession || sessionLocked(selectedSession) || isAttendanceLocked(record)" 
                 />
               </template>
             </template>
@@ -276,6 +278,7 @@ import { classApi } from '@/api/classApi'
 import { scheduleApi } from '@/api/scheduleApi'
 import { enrollmentApi } from '@/api/enrollmentApi'
 import { attendanceApi } from '@/api/attendanceApi'
+import { tuitionApi } from '@/api/tuitionApi'
 import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/lib/formatters'
 
@@ -293,6 +296,7 @@ const schedules = ref([])
 const enrollments = ref([])
 const sessions = ref([])
 const records = ref([])
+const learningHolds = ref([])
 
 const selectedClassId = ref(props.classId || undefined)
 const selectedScheduleId = ref(undefined)
@@ -319,6 +323,7 @@ const stats = computed(() => {
     absent: records.value.filter(r => r.status === 'Absent').length,
     late: records.value.filter(r => r.status === 'Late').length,
     excused: records.value.filter(r => r.status === 'Excused').length,
+    locked: records.value.filter(r => isAttendanceLocked(r)).length,
   }
 })
 
@@ -365,6 +370,20 @@ function activeEnrollments() {
   return enrollments.value.filter(x => ['Confirmed', 'Studying', 2, 3, '2', '3'].includes(x.status))
 }
 
+function isAttendanceLocked(record) {
+  return learningHolds.value.some(x => String(x.studentId).toLowerCase() === String(record.studentId).toLowerCase())
+}
+
+async function loadLearningHolds(classId) {
+  learningHolds.value = []
+  if (!classId) return
+  try {
+    learningHolds.value = await tuitionApi.getLearningHolds({ classId })
+  } catch (error) {
+    message.warning(error.message || 'Không thể kiểm tra trạng thái khóa học phí')
+  }
+}
+
 // Data Fetching
 async function loadBaseData() {
   if (!auth.user?.referenceId) return
@@ -382,6 +401,7 @@ async function loadBaseData() {
 
 async function onClassChange() {
   records.value = []
+  learningHolds.value = []
   selectedSessionId.value = undefined
   if (!selectedClassId.value) return
   const [sch, en, ses] = await Promise.all([
@@ -391,6 +411,7 @@ async function onClassChange() {
   ])
   schedules.value = sch || []
   enrollments.value = en || []
+  await loadLearningHolds(selectedClassId.value)
   // Xếp phiên mới nhất lên đầu
   sessions.value = (ses || []).sort((a,b) => b.sessionNumber - a.sessionNumber)
   selectedScheduleId.value = schedules.value[0]?.id
@@ -424,6 +445,7 @@ async function selectSession(session) {
   selectedSessionId.value = session.id
   loadingRecords.value = true
   try {
+    await loadLearningHolds(session.classId || selectedClassId.value)
     const data = await attendanceApi.getRecordsBySession(session.id)
     if (data?.length) {
       records.value = data.map(x => ({ ...x, status: normalizedStatus(x.status) }))
@@ -446,20 +468,26 @@ async function selectSession(session) {
 
 function markAllPresent() {
   if (!records.value.length || sessionLocked(selectedSession.value)) return
-  records.value.forEach(r => { r.status = 'Present' })
+  records.value.forEach(r => { if (!isAttendanceLocked(r)) r.status = 'Present' })
   message.success('Đã thiết lập nhanh tất cả "Có mặt".')
 }
 
 async function saveRecords() {
   if (!selectedSession.value) return
+  const unlockedRecords = records.value.filter(x => !isAttendanceLocked(x))
+  const lockedCount = records.value.length - unlockedRecords.length
+  if (!unlockedRecords.length) {
+    message.warning('Tất cả học viên trong buổi này đang bị khóa điểm danh do quá hạn học phí.')
+    return
+  }
   saving.value = true
   try {
     const saved = await attendanceApi.bulkUpdateRecords({
       attendanceSessionId: selectedSession.value.id,
-      records: records.value.map(x => ({ studentId: x.studentId, status: x.status, note: x.note }))
+      records: unlockedRecords.map(x => ({ studentId: x.studentId, status: x.status, note: x.note }))
     })
     records.value = saved.map(x => ({ ...x, status: normalizedStatus(x.status) }))
-    message.success('Đã lưu dữ liệu điểm danh thành công.')
+    message.success(lockedCount ? `Đã lưu điểm danh. Bỏ qua ${lockedCount} học viên bị khóa do quá hạn học phí.` : 'Đã lưu dữ liệu điểm danh thành công.')
   } catch (error) {
     message.error(error.message || 'Có lỗi xảy ra trong quá trình lưu dữ liệu.')
   } finally {

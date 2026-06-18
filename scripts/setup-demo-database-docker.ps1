@@ -2,6 +2,7 @@
     [string]$ServerInstance = $env:SQL_SERVER,
     [string]$SqlUser = $env:SQL_USER,
     [string]$SqlPassword = $env:SQL_PASSWORD,
+    [string]$DockerSqlContainer = "educenter-demo-sqlserver",
     [switch]$SkipSchemaInit
 )
 
@@ -15,16 +16,16 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptDir "..")
 $backendRoot = Join-Path $repoRoot "backend"
 
-if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
-    throw "Không tìm thấy sqlcmd. Hãy cài SQL Server Command Line Utilities hoặc thêm sqlcmd vào PATH."
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    throw "Không tìm thấy docker. Hãy mở Docker Desktop hoặc thêm docker vào PATH."
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw "Không tìm thấy dotnet. Hãy cài .NET SDK 8 và thêm dotnet vào PATH."
 }
 
-if ($SqlUser -and -not $SqlPassword) {
-    throw "SQL_USER đã được đặt nhưng SQL_PASSWORD đang trống."
+if (-not $SqlUser -or -not $SqlPassword) {
+    throw "Script Docker local cần -SqlUser và -SqlPassword để kết nối SQL container."
 }
 
 function Q([string]$Value) {
@@ -50,21 +51,36 @@ function New-DbConnectionString([string]$Database) {
 
 function Invoke-EduSql([string]$Database, [string]$Query) {
     $tempFile = Join-Path ([System.IO.Path]::GetTempPath()) "educenter-$Database-$([Guid]::NewGuid()).sql"
-    [System.IO.File]::WriteAllText($tempFile, $Query, [System.Text.UTF8Encoding]::new($true))
+    $containerFile = "/tmp/$(Split-Path -Leaf $tempFile)"
+    $queryWithOptions = "SET ANSI_NULLS ON;`nSET QUOTED_IDENTIFIER ON;`n$Query"
+    [System.IO.File]::WriteAllText($tempFile, $queryWithOptions, [System.Text.UTF8Encoding]::new($true))
 
     try {
-        $args = @("-S", $ServerInstance, "-d", $Database, "-i", $tempFile, "-b", "-f", "65001", "-l", "30")
-        if ($SqlUser) {
-            $args += @("-U", $SqlUser, "-P", $SqlPassword)
-        } else {
-            $args += "-E"
+        & docker cp $tempFile "${DockerSqlContainer}:$containerFile"
+        if ($LASTEXITCODE -ne 0) {
+            throw "docker cp failed for $tempFile."
         }
 
-        & sqlcmd @args
+        $args = @(
+            "exec", $DockerSqlContainer,
+            "/opt/mssql-tools18/bin/sqlcmd",
+            "-S", "localhost",
+            "-d", $Database,
+            "-i", $containerFile,
+            "-b",
+            "-C",
+            "-f", "65001",
+            "-l", "30",
+            "-U", $SqlUser,
+            "-P", $SqlPassword
+        )
+
+        & docker @args
         if ($LASTEXITCODE -ne 0) {
-            throw "sqlcmd failed for database $Database with exit code $LASTEXITCODE."
+            throw "container sqlcmd failed for database $Database with exit code $LASTEXITCODE."
         }
     } finally {
+        & docker exec -u 0 $DockerSqlContainer rm -f $containerFile *> $null
         Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
     }
 }

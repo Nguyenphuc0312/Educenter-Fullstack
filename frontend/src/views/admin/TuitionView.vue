@@ -1,6 +1,7 @@
 <template>
   <div>
     <AdminResourceView
+      ref="resourceView"
       title="Học phí và hóa đơn"
       subtitle="Theo dõi học phí, số tiền đã đóng, công nợ và trạng thái hóa đơn từng học viên."
       :api="tuitionApi"
@@ -10,7 +11,8 @@
       :status-options="statusOptions"
       :form-groups="formGroups"
       :filter-fn="customFilter"
-      :can-select="record => !isPaid(record.status)"
+      :can-select="canMarkOverdue"
+      :has-row-actions="canMarkOverdue"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -53,6 +55,18 @@
         />
       </template>
 
+      <template #actions>
+        <button
+          type="button"
+          class="admin-btn admin-btn-secondary h-9 px-3"
+          :disabled="scanLoading"
+          @click="scanOverdueInvoices"
+        >
+          <span v-if="scanLoading" class="inline-block w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin"></span>
+          Quét quá hạn
+        </button>
+      </template>
+
       <!-- Bulk actions -->
       <template #bulkActions="{ selectedRowKeys, refresh }">
         <a-button
@@ -68,7 +82,7 @@
       <!-- Row Actions -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
-          v-if="!isPaid(record.status)"
+          v-if="canMarkOverdue(record)"
           class="rounded-lg px-3 py-2 text-xs"
           @click="triggerMarkOverdue(record.id, refresh)"
         >
@@ -189,6 +203,8 @@ const confirmOpen = ref(false)
 const confirmTitle = ref('')
 const confirmMsg = ref('')
 const confirmLoading = ref(false)
+const scanLoading = ref(false)
+const resourceView = ref(null)
 let confirmActionCallback = null
 
 // Table columns
@@ -276,9 +292,22 @@ const formGroups = [
   { title: 'Thanh toán', fields: ['totalAmount', 'paidAmount'] },
 ]
 
+const invoiceStatusValues = { Unpaid: 1, Partial: 2, Paid: 3, Overdue: 4 }
+
+function enumNumber(value, values) {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value)
+  return values[value] ?? value
+}
+
+function sameId(left, right) {
+  return String(left || '').toLowerCase() === String(right || '').toLowerCase()
+}
+
 function customFilter(item) {
-  const matchStatus = filterStatus.value === undefined || Number(item.status) === Number(filterStatus.value)
-  const matchCourse = filterCourseId.value === undefined || item.courseId === filterCourseId.value
+  const itemStatus = enumNumber(item.status, invoiceStatusValues)
+  const matchStatus = filterStatus.value === undefined || Number(itemStatus) === Number(filterStatus.value)
+  const matchCourse = filterCourseId.value === undefined || sameId(item.courseId, filterCourseId.value)
 
   let matchDueDate = true
   if (filterDueDateRange.value && filterDueDateRange.value.length >= 2) {
@@ -286,15 +315,15 @@ function customFilter(item) {
     const startDate = new Date(start)
     const endDate = new Date(end)
     endDate.setHours(23, 59, 59, 999)
-    if (item.dueDate) {
+    if (!item.dueDate) matchDueDate = false
+    else {
       const dueDate = new Date(item.dueDate)
-      matchDueDate = dueDate >= startDate && dueDate <= endDate
+      matchDueDate = !Number.isNaN(dueDate.getTime()) && dueDate >= startDate && dueDate <= endDate
     }
   }
 
   return matchStatus && matchCourse && matchDueDate
 }
-
 function resetCustomFilters() {
   filterStatus.value = undefined
   filterCourseId.value = undefined
@@ -307,6 +336,23 @@ function getRemaining(record) {
 
 function isPaid(status) {
   return Number(status) === 3 || status === 'Paid'
+}
+
+function canMarkOverdue(record) {
+  if (!record || isPaid(record.status)) return false
+  const debt = getRemaining(record)
+  if (debt <= 0) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const partialDue = record.partialPaymentDueDate ? new Date(record.partialPaymentDueDate) : null
+  if (partialDue) {
+    partialDue.setHours(0, 0, 0, 0)
+    return partialDue < today
+  }
+  if (!record.dueDate) return false
+  const dueDate = new Date(record.dueDate)
+  dueDate.setHours(0, 0, 0, 0)
+  return dueDate < today
 }
 
 function getPaymentProgress(record) {
@@ -348,6 +394,19 @@ function triggerBulkOverdue(ids, refresh) {
     refresh()
   }
   confirmOpen.value = true
+}
+
+async function scanOverdueInvoices() {
+  scanLoading.value = true
+  try {
+    const result = await tuitionApi.scanOverdue()
+    message.success(`Đã quét ${result.scannedInvoices || 0} hóa đơn, cập nhật ${result.updatedInvoices || 0} hóa đơn quá hạn`)
+    await resourceView.value?.fetchItems?.()
+  } catch (error) {
+    message.error(error.message || 'Không thể quét hóa đơn quá hạn')
+  } finally {
+    scanLoading.value = false
+  }
 }
 
 async function handleExecuteAction() {

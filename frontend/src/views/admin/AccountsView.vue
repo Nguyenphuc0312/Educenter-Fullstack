@@ -11,10 +11,11 @@
       status-field="status"
       :form-groups="formGroups"
       :filter-fn="customFilter"
-      :can-edit="record => !isAdmin(record.role)"
+      :can-edit="() => true"
       :can-delete="record => !isAdmin(record.role)"
       :has-row-actions="record => !isAdmin(record.role)"
       :can-select="record => !isAdmin(record.role)"
+      :normalize-out="normalizeAccountOut"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -189,13 +190,34 @@ const columns = [
 ]
 
 const fields = [
-  { name: 'username', label: 'Username', required: true, default: '' },
-  { name: 'password', label: 'Mật khẩu', type: 'password', default: 'User@123' },
+  { name: 'username', label: 'Username', required: true, default: '', disabled: (_form, record) => !!record },
+  {
+    name: 'password',
+    label: 'Mật khẩu mới',
+    type: 'password',
+    default: 'User@123',
+    editDefault: '',
+    placeholder: 'Để trống nếu không đổi mật khẩu'
+  },
   { name: 'fullName', label: 'Họ tên', required: true, default: '' },
   { name: 'email', label: 'Email', required: true, default: '' },
   { name: 'phone', label: 'Điện thoại', default: '' },
-  { name: 'role', label: 'Vai trò', type: 'select', options: toOptions(USER_ROLE), default: 3 },
-  { name: 'referenceId', label: 'Reference ID', fullWidth: true, default: '' },
+  {
+    name: 'role',
+    label: 'Vai trò',
+    type: 'select',
+    options: (_form, record) => record ? toOptions(USER_ROLE) : toOptions(USER_ROLE).filter((option) => Number(option.value) !== 1),
+    default: 3,
+    disabled: (_form, record) => !!record
+  },
+  {
+    name: 'referenceId',
+    label: 'Reference ID',
+    fullWidth: true,
+    default: '',
+    disabled: (_form, record) => !!record,
+    hidden: (_form, record) => record && isAdmin(record.role)
+  },
 ]
 
 const formGroups = [
@@ -222,6 +244,20 @@ function customFilter(item) {
 function resetCustomFilters() {
   filterRole.value = undefined
   filterStatusValue.value = undefined
+}
+
+function normalizeAccountOut(payload) {
+  const normalized = {
+    ...payload,
+    username: String(payload.username || '').trim(),
+    fullName: String(payload.fullName || '').trim(),
+    email: String(payload.email || '').trim(),
+    phone: String(payload.phone || '').trim(),
+  }
+
+  if (!normalized.password) delete normalized.password
+  if (Number(normalized.role) === 1) normalized.role = 3
+  return normalized
 }
 
 // Role helpers

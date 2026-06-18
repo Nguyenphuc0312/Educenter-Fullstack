@@ -11,6 +11,8 @@ public sealed record LoginResponse(string AccessToken, string RefreshToken, Date
 public sealed record RevenueOverviewResponse(decimal TotalRevenue, decimal TotalDebt, int PaidInvoices, int UnpaidInvoices, int PartialInvoices, int OverdueInvoices);
 public sealed record GroupAmountResponse(Guid Id, string Name, decimal TotalRevenue, decimal TotalDebt);
 public sealed record DashboardResponse(RevenueOverviewResponse Overview, IReadOnlyList<GroupAmountResponse> RevenueByCourse, IReadOnlyList<GroupAmountResponse> DebtByClass);
+public sealed record OverdueScanResponse(int ScannedInvoices, int UpdatedInvoices, IReadOnlyList<TuitionInvoiceResponse> Items);
+public sealed record LearningHoldResponse(Guid InvoiceId, Guid? EnrollmentId, string InvoiceCode, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal DebtAmount, DateTime DueDate, DateTime? PartialPaymentDueDate, InvoiceStatus Status, string Reason);
 
 public sealed class LoginRequest { [Required] public string Username { get; set; } = string.Empty; [Required] public string Password { get; set; } = string.Empty; }
 public class CreateAccountRequest
@@ -28,6 +30,7 @@ public sealed class UpdateAccountRequest
     [Required] public string FullName { get; set; } = string.Empty;
     [Required, EmailAddress] public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    public string? Password { get; set; }
     public UserRole Role { get; set; }
     public Guid? ReferenceId { get; set; }
 }

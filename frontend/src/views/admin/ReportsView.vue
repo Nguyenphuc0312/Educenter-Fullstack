@@ -48,7 +48,7 @@
             <DownOutlined style="font-size: 10px;" />
           </button>
           <template #overlay>
-            <a-menu class="min-w-[220px] shadow-lg rounded-xl p-1.5"
+            <a-menu class="min-w-[240px] shadow-lg rounded-xl p-1.5"
               style="background: var(--admin-surface); border: 1px solid var(--admin-border);">
               <a-menu-item key="overview" class="rounded-lg px-3 py-2 text-xs" @click="handleExport('overview')">
                 <div class="flex items-center gap-2">
@@ -764,6 +764,7 @@ import { courseApi } from '@/api/courseApi'
 import { classApi } from '@/api/classApi'
 import { enrollmentApi } from '@/api/enrollmentApi'
 import { formatVnd, shortInvoiceCode, shortDateVN } from '@/lib/formatters'
+import { downloadExcelReport, reportFilename } from '@/lib/exportDocuments'
 import EmptyTableState from '@/components/admin/EmptyTableState.vue'
 
 // EmptyChartState component (inline) — dùng cho chart/table empty
@@ -803,10 +804,11 @@ import {
   LinearScale,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
+  Filler
 } from 'chart.js'
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement, PointElement, LineElement)
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement, PointElement, LineElement, Filler)
 
 const loading = ref(false)
 const errorMsg = ref('')
@@ -1027,6 +1029,38 @@ const revenueTrendChartData = computed(() => {
   }
 })
 
+const revenueInsight = computed(() => {
+  const data = revenueTrendChartData.value.datasets?.[0]?.data || []
+  if (data.length < 2) return null
+
+  const last = Number(data[data.length - 1] || 0)
+  const previous = Number(data[data.length - 2] || 0)
+  const diff = last - previous
+
+  if (diff === 0) {
+    return {
+      direction: 'neutral',
+      headline: 'Doanh thu \u1ed5n \u0111\u1ecbnh',
+      detail: `B\u1eb1ng v\u1edbi k\u1ef3 tr\u01b0\u1edbc (${formatVnd(previous)}).`
+    }
+  }
+
+  if (previous === 0) {
+    return {
+      direction: diff > 0 ? 'up' : 'neutral',
+      headline: diff > 0 ? 'B\u1eaft \u0111\u1ea7u c\u00f3 doanh thu' : 'Ch\u01b0a c\u00f3 bi\u1ebfn \u0111\u1ed9ng',
+      detail: `K\u1ef3 n\u00e0y \u0111\u1ea1t ${formatVnd(last)}.`
+    }
+  }
+
+  const percent = Math.round(Math.abs(diff / previous) * 100)
+  return {
+    direction: diff > 0 ? 'up' : 'down',
+    headline: diff > 0 ? `T\u0103ng ${percent}% so v\u1edbi k\u1ef3 tr\u01b0\u1edbc` : `Gi\u1ea3m ${percent}% so v\u1edbi k\u1ef3 tr\u01b0\u1edbc`,
+    detail: `K\u1ef3 n\u00e0y \u0111\u1ea1t ${formatVnd(last)}, k\u1ef3 tr\u01b0\u1edbc ${formatVnd(previous)}.`
+  }
+})
+
 // 2. Revenue by course (Bar)
 // Mảng màu gradient cho chart bar (đẹp + phân biệt)
 const chartBarGradient = [
@@ -1103,18 +1137,21 @@ const topRevenueClass = computed(() => {
 
 // 4. Payment methods (Doughnut)
 const paymentMethodChartData = computed(() => {
-  // Method mapping: 1 Cash, 2 Bank Transfer, 3 Momo, 4 VNPay
-  const methods = { 1: 0, 2: 0, 3: 0, 4: 0 }
+  // Cash is no longer offered; old method=1 records are folded into bank transfer.
+  const methods = { 2: 0, 3: 0, 4: 0 }
   filteredPayments.value.filter(p => enumValue(p.status, { Success: 1, Pending: 2, Failed: 3, Cancelled: 4 }) === 1).forEach(p => {
     const method = enumValue(p.method, { Cash: 1, BankTransfer: 2, Momo: 3, VNPay: 4 })
-    methods[method] = (methods[method] || 0) + parseFloat(p.amount)
+    const normalizedMethod = method === 1 ? 2 : method
+    if (normalizedMethod in methods) {
+      methods[normalizedMethod] = (methods[normalizedMethod] || 0) + parseFloat(p.amount)
+    }
   })
 
   return {
-    labels: ['Tiền mặt', 'Chuyển khoản', 'Momo', 'VNPay'],
+    labels: ['Chuyển khoản', 'Momo', 'VNPay'],
     datasets: [{
-      data: [methods[1], methods[2], methods[3], methods[4]],
-      backgroundColor: ['#10b981', '#3b82f6', '#ec4899', '#f59e0b'],
+      data: [methods[2], methods[3], methods[4]],
+      backgroundColor: ['#3b82f6', '#ec4899', '#f59e0b'],
       borderWidth: 0
     }]
   }
@@ -1548,21 +1585,84 @@ function setTrendRange(value) {
 
 async function handleExport(type) {
   try {
-    message.loading({ content: 'Đang chuẩn bị tệp xuất...', key: 'exporting' })
-    if (type === 'course') await reportApi.exportRevenueByCourse()
-    else if (type === 'class') await reportApi.exportRevenueByClass()
-    else if (type === 'debt-student') await reportApi.exportDebtByStudent()
-    else if (type === 'debt-class') await reportApi.exportDebtByClass()
+    message.loading({ content: 'Dang chuan bi tep xuat...', key: 'exporting' })
+    if (type === 'overview') exportOverviewReport()
+    else if (type === 'course') exportGroupAmountReport('Bao cao doanh thu theo khoa hoc', 'Tong hop doanh thu va cong no theo tung khoa hoc.', revenueByCourse.value, 'bao-cao-doanh-thu-theo-khoa')
+    else if (type === 'class') exportGroupAmountReport('Bao cao doanh thu theo lop hoc', 'Tong hop doanh thu va cong no theo tung lop hoc.', revenueByClass.value, 'bao-cao-doanh-thu-theo-lop')
+    else if (type === 'debt-student') exportGroupAmountReport('Bao cao cong no theo hoc vien', 'Danh sach hoc vien con cong no hoc phi.', debtByStudentRanked.value, 'bao-cao-cong-no-theo-hoc-vien', true)
+    else if (type === 'debt-class') exportGroupAmountReport('Bao cao cong no theo lop hoc', 'Tong hop cong no hoc phi theo tung lop.', debtByClass.value, 'bao-cao-cong-no-theo-lop')
     else if (type === 'results') await resultApi.export()
     else if (type === 'courses') await courseApi.export()
-    else if (type === 'overview') {
-      // Overview = export revenue by course as fallback (client-side CSV đơn giản)
-      await reportApi.exportRevenueByCourse()
-    }
-    message.success({ content: 'Xuất báo cáo thành công!', key: 'exporting' })
+    message.success({ content: 'Xuat bao cao thanh cong!', key: 'exporting' })
   } catch (error) {
-    message.error({ content: error.message || 'Xuất báo cáo thất bại', key: 'exporting' })
+    message.error({ content: error.message || 'Xuat bao cao that bai', key: 'exporting' })
   }
+}
+
+function exportOverviewReport() {
+  const rows = [
+    { label: 'Tong doanh thu', value: formatVnd(totalPaidRevenue.value), note: 'Tu giao dich thanh cong trong ky loc' },
+    { label: 'Tong cong no', value: formatVnd(totalDebtRevenue.value), note: 'Hoa don con no' },
+    { label: 'Tong phai thu', value: formatVnd(totalExpectedRevenue.value), note: 'Da thu + cong no' },
+    { label: 'Ty le thu hoc phi', value: String(collectionRate.value) + '%', note: 'Doanh thu / tong phai thu' },
+    { label: 'So giao dich trong ky', value: filteredPayments.value.length, note: activePeriodLabel.value },
+    { label: 'Hoa don qua han', value: overdueInvoiceCount.value, note: overdueInvoiceCount.value > 0 ? 'Can theo doi' : 'Khong co' },
+  ]
+
+  downloadExcelReport({
+    title: 'Bao cao tong quan tai chinh',
+    subtitle: 'Theo bo loc ' + activePeriodLabel.value + '. Tong hop doanh thu, cong no, ty le thu va hoa don qua han.',
+    filename: reportFilename('bao-cao-tong-quan-tai-chinh'),
+    user: { fullName: 'System Admin', username: 'admin' },
+    summary: [
+      { label: 'Doanh thu', value: formatVnd(totalPaidRevenue.value) },
+      { label: 'Cong no', value: formatVnd(totalDebtRevenue.value) },
+      { label: 'Ty le thu', value: String(collectionRate.value) + '%' },
+      { label: 'Giao dich', value: filteredPayments.value.length },
+    ],
+    columns: [
+      { label: 'Chi so', value: (x) => x.label },
+      { label: 'Gia tri', value: (x) => x.value },
+      { label: 'Ghi chu', value: (x) => x.note },
+    ],
+    rows,
+    notes: [
+      'Bao cao duoc tao tu du lieu dang hien thi sau bo loc thoi gian tren man Bao cao & Thong ke.',
+      'Co the mo file bang Excel hoac LibreOffice de in, luu tru hoac nop minh chung demo.',
+    ],
+  })
+}
+
+function exportGroupAmountReport(title, subtitle, sourceRows, filenameStem, debtOnly = false) {
+  const rows = [...(sourceRows || [])]
+    .filter((item) => !debtOnly || Number(item.totalDebt || 0) > 0)
+    .sort((a, b) => Number((debtOnly ? b.totalDebt : b.totalRevenue) || 0) - Number((debtOnly ? a.totalDebt : a.totalRevenue) || 0))
+  const totalRevenue = rows.reduce((sum, item) => sum + Number(item.totalRevenue || 0), 0)
+  const totalDebt = rows.reduce((sum, item) => sum + Number(item.totalDebt || 0), 0)
+  const percentBase = debtOnly ? totalDebt : totalRevenue
+
+  downloadExcelReport({
+    title,
+    subtitle: subtitle + ' Bo loc hien tai: ' + activePeriodLabel.value + '.',
+    filename: reportFilename(filenameStem),
+    user: { fullName: 'System Admin', username: 'admin' },
+    summary: [
+      { label: 'Tong doanh thu', value: formatVnd(totalRevenue) },
+      { label: 'Tong cong no', value: formatVnd(totalDebt) },
+      { label: 'So dong', value: rows.length },
+    ],
+    columns: [
+      { label: 'Ten', value: (x) => x.name || '-' },
+      { label: 'Doanh thu', value: (x) => formatVnd(x.totalRevenue || 0) },
+      { label: 'Cong no', value: (x) => formatVnd(x.totalDebt || 0) },
+      { label: 'Ty trong', value: (x) => percentBase ? String(Math.round(Number((debtOnly ? x.totalDebt : x.totalRevenue) || 0) / percentBase * 100)) + '%' : '0%' },
+    ],
+    rows,
+    notes: [
+      'File duoc xuat o dinh dang Excel HTML de giu bo cuc bao cao dep khi mo bang Excel.',
+      'Du lieu phan anh danh sach hien co tren man hinh, khong thay doi database.',
+    ],
+  })
 }
 
 async function fetchData() {

@@ -28,6 +28,7 @@
           <p class="text-[10px] text-base-tertiary">{{ getRoleLabel(user?.role) }}</p>
         </div>
         <button
+          v-if="!isAdmin"
           type="button"
           @click="goToProfile"
           class="w-full flex items-center gap-2 px-3 py-2 text-xs text-base-secondary hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer text-left"
@@ -69,6 +70,7 @@ const isOpen = ref(false);
 const dropdownRef = ref(null);
 
 const user = computed(() => authStore.user);
+const isAdmin = computed(() => String(user.value?.role) === 'Admin' || Number(user.value?.role) === 1);
 
 function handleClickOutside(event) {
   if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {

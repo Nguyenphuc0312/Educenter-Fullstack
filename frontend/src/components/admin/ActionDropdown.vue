@@ -107,6 +107,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  showExtra: {
+    type: Boolean,
+    default: true
+  },
   deleteConfirmText: {
     type: String,
     default: 'Xóa bản ghi này?'
@@ -125,7 +129,7 @@ const computedActions = computed(() => {
 })
 
 const hasMoreActions = computed(() => {
-  return props.showDelete || props.actions.length > 0 || !!slots.extra
+  return props.showDelete || props.actions.length > 0 || (props.showExtra && !!slots.extra)
 })
 
 function handleActionClick(act) {

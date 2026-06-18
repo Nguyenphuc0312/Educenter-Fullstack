@@ -192,9 +192,22 @@
           </div>
 
           <h3 class="font-bold text-slate-800 mb-3">Phương thức</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <button
+              v-for="method in paymentMethods"
+              :key="method.value"
+              type="button"
+              class="rounded-lg border px-3 py-3 text-left transition-colors"
+              :class="selectedPaymentMethod === method.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'"
+              @click="selectedPaymentMethod = method.value"
+            >
+              <div class="text-sm font-bold">{{ method.label }}</div>
+              <div class="mt-1 text-xs opacity-80">{{ method.short }}</div>
+            </button>
+          </div>
           <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <div class="font-semibold text-slate-800">Chuyển khoản ngân hàng</div>
-            <div class="mt-1 text-sm text-slate-600">Yêu cầu sẽ ở trạng thái chờ đến khi quản trị viên đối soát giao dịch.</div>
+            <div class="font-semibold text-slate-800">{{ selectedMethodInfo.label }}</div>
+            <div class="mt-1 text-sm text-slate-600">{{ selectedMethodInfo.description }}</div>
           </div>
 
           <div class="flex gap-3">
@@ -210,28 +223,28 @@
               @click="generateQR"
             >
               <LoadingSpinner v-if="isProcessing" size="sm" class="!text-white" />
-              <span v-else>Xem hướng dẫn chuyển khoản</span>
+              <span v-else>Xem hướng dẫn thanh toán</span>
             </button>
           </div>
         </div>
 
         <div v-else-if="paymentStep === 2" class="text-center py-4">
-          <h3 class="text-lg font-bold text-slate-800 mb-2">Thông tin chuyển khoản</h3>
+          <h3 class="text-lg font-bold text-slate-800 mb-2">{{ selectedMethodInfo.instructionTitle }}</h3>
           <p class="text-sm text-slate-500 mb-6">
-            Chuyển đúng <strong class="text-slate-700">{{ formatVnd(paymentAmount) }}</strong> và ghi nội dung <strong class="text-slate-700">{{ transferContent }}</strong>.
+            Thanh toán đúng <strong class="text-slate-700">{{ formatVnd(paymentAmount) }}</strong> với nội dung <strong class="text-slate-700">{{ transferContent }}</strong>.
           </p>
 
-          <div v-if="paymentQrUrl" class="bg-white p-4 rounded-lg border border-blue-200 inline-block mb-6">
-            <img :src="paymentQrUrl" alt="Mã QR chuyển khoản" class="w-48 h-48 mx-auto object-contain" />
+          <div v-if="activeQrUrl && !qrImageFailed" class="bg-white p-4 rounded-lg border border-blue-200 inline-block mb-6">
+            <img :src="activeQrUrl" :alt="selectedMethodInfo.qrAlt" class="w-48 h-48 mx-auto object-contain" @error="qrImageFailed = true" />
           </div>
           <div v-else class="mb-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-left text-sm text-slate-600">
-            Mã QR ngân hàng chưa được cấu hình. Vui lòng dùng thông tin chuyển khoản do trung tâm cung cấp và chỉ gửi yêu cầu sau khi đã thực hiện giao dịch.
+            QR cho ph??ng th?c n?y ch?a ???c c?u h?nh ho?c file ?nh ch?a t?n t?i. H?y ??t ?nh t?i <strong>frontend/public/payment-qr/techcombank-qr.jpg</strong> ho?c c?u h?nh VietQR ??ng.
           </div>
 
           <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm text-amber-700 text-left mb-6">
             <p class="font-medium">Lưu ý quan trọng:</p>
             <ul class="list-disc pl-5 mt-1 space-y-1">
-              <li>Không thay đổi nội dung chuyển khoản.</li>
+              <li>Không thay đổi nội dung thanh toán.</li>
               <li>Gửi yêu cầu không đồng nghĩa với thanh toán thành công.</li>
               <li>Công nợ chỉ cập nhật sau khi quản trị viên xác nhận tiền đã vào tài khoản.</li>
             </ul>
@@ -250,7 +263,7 @@
               @click="submitPaymentRequest"
             >
               <LoadingSpinner v-if="isSubmittingPayment" size="sm" class="!text-white" />
-              <span v-else>Đã chuyển khoản, gửi xác minh</span>
+              <span v-else>Đã thanh toán, gửi xác minh</span>
             </button>
           </div>
         </div>
@@ -292,10 +305,45 @@ const columns = [
 const isPaymentModalVisible = ref(false);
 const selectedInvoice = ref(null);
 const paymentPercent = ref(100);
+const selectedPaymentMethod = ref(2);
 const isProcessing = ref(false);
 const paymentStep = ref(1);
 const isSubmittingPayment = ref(false);
-const paymentQrUrl = import.meta.env.VITE_PAYMENT_QR_URL || "";
+const qrImageFailed = ref(false);
+const defaultQrUrl = "/payment-qr/techcombank-qr.jpg";
+const staticBankQrUrl = import.meta.env.VITE_BANK_QR_URL || import.meta.env.VITE_PAYMENT_QR_URL || defaultQrUrl;
+const momoQrUrl = import.meta.env.VITE_MOMO_QR_URL || staticBankQrUrl;
+const vnpayQrUrl = import.meta.env.VITE_VNPAY_QR_URL || "";
+const vietQrBankId = import.meta.env.VITE_VIETQR_BANK_ID || "";
+const vietQrAccountNo = import.meta.env.VITE_VIETQR_ACCOUNT_NO || "";
+const vietQrAccountName = import.meta.env.VITE_VIETQR_ACCOUNT_NAME || "";
+
+const paymentMethods = [
+  {
+    value: 2,
+    label: "Chuyển khoản",
+    short: "Ngân hàng/VietQR",
+    description: "Quét QR ngân hàng hoặc chuyển khoản đúng nội dung để quản trị viên đối soát.",
+    instructionTitle: "Thông tin chuyển khoản",
+    qrAlt: "Mã QR chuyển khoản ngân hàng",
+  },
+  {
+    value: 3,
+    label: "Momo",
+    short: "Ví điện tử mock",
+    description: "Mô phỏng thanh toán qua ví Momo. Sau khi thanh toán, gửi yêu cầu để admin xác minh.",
+    instructionTitle: "Thông tin thanh toán Momo",
+    qrAlt: "Mã QR Momo",
+  },
+  {
+    value: 4,
+    label: "VNPay",
+    short: "Cổng online mock",
+    description: "Mô phỏng thanh toán VNPay QR có số tiền và nội dung hóa đơn cho demo.",
+    instructionTitle: "Thông tin thanh toán VNPay",
+    qrAlt: "Mã QR VNPay",
+  },
+];
 
 const canChoosePartial = computed(() => Number(selectedInvoice.value?.paidAmount || 0) <= 0);
 const paymentAmount = computed(() => {
@@ -305,6 +353,24 @@ const paymentAmount = computed(() => {
   return paymentPercent.value === 50 ? Math.min(Math.round(total * 0.5), debt) : debt;
 });
 const transferContent = computed(() => `EDU ${selectedInvoice.value?.invoiceCode || ""}`.trim());
+const selectedMethodInfo = computed(() => paymentMethods.find((item) => item.value === selectedPaymentMethod.value) || paymentMethods[0]);
+const dynamicVietQrUrl = computed(() => {
+  if (vietQrBankId && vietQrAccountNo) {
+    const params = new URLSearchParams({
+      amount: String(paymentAmount.value || 0),
+      addInfo: transferContent.value,
+      accountName: vietQrAccountName,
+    });
+    return `https://img.vietqr.io/image/${vietQrBankId}-${vietQrAccountNo}-compact2.png?${params.toString()}`;
+  }
+  return "";
+});
+const activeQrUrl = computed(() => {
+  if (selectedPaymentMethod.value === 2) return dynamicVietQrUrl.value || staticBankQrUrl;
+  if (selectedPaymentMethod.value === 3) return momoQrUrl || dynamicVietQrUrl.value || staticBankQrUrl;
+  if (selectedPaymentMethod.value === 4) return vnpayQrUrl || dynamicVietQrUrl.value || staticBankQrUrl;
+  return staticBankQrUrl;
+});
 const pendingInvoiceIds = computed(() => new Set(
   payments.value
     .filter((item) => item.status === 2 || item.status === "2" || item.status === "Pending")
@@ -410,12 +476,25 @@ async function exportReport() {
 function hasPendingPayment(invoiceId) {
   return pendingInvoiceIds.value.has(invoiceId);
 }
+
+function latestSuccessfulPayment(invoiceId) {
+  return [...payments.value]
+    .filter((item) => item.invoiceId === invoiceId && (item.status === 1 || item.status === "1" || item.status === "Success"))
+    .sort((a, b) => new Date(b.paymentDate || b.createdAt || 0) - new Date(a.paymentDate || a.createdAt || 0))[0] || null;
+}
+
+function paymentMethodText(method) {
+  const value = Number(method);
+  return ({ 1: "Chuyển khoản", 2: "Chuyển khoản", 3: "Momo", 4: "VNPay" }[value] || method || "Theo giao dịch hệ thống");
+}
+
 // Nút "Tải biên lai"
 async function downloadReceipt(invoice) {
   invoice.isDownloading = true;
   message.loading({ content: `Đang tạo biên lai cho ${invoice.invoiceCode}...`, key: `pdf-${invoice.id}` });
 
   try {
+    const successPayment = latestSuccessfulPayment(invoice.id);
     downloadExcelReport({
       title: "Biên lai / Hóa đơn học phí",
       subtitle: "Chứng từ thanh toán điện tử tạo từ EduCenter.",
@@ -423,6 +502,7 @@ async function downloadReceipt(invoice) {
       user: auth.user,
       summary: [
         { label: "Mã hóa đơn", value: invoice.invoiceCode || invoice.id },
+        { label: "Mã giao dịch", value: successPayment?.id || "-" },
         { label: "Trạng thái", value: statusText(invoice.status, invoice.dueDate) },
         { label: "Đã thanh toán", value: formatVnd(invoice.paidAmount) },
         { label: "Còn nợ", value: formatVnd(invoice.debtAmount) },
@@ -439,7 +519,8 @@ async function downloadReceipt(invoice) {
         { label: "Tổng tiền", value: formatVnd(invoice.totalAmount) },
         { label: "Đã thanh toán", value: formatVnd(invoice.paidAmount) },
         { label: "Còn nợ", value: formatVnd(invoice.debtAmount) },
-        { label: "Phương thức", value: invoice.paymentMethod || "Theo giao dịch hệ thống" },
+        { label: "Giao dịch gần nhất", value: successPayment ? `${formatVnd(successPayment.amount)} - ${formatDate(successPayment.paymentDate)}` : "-" },
+        { label: "Phương thức", value: paymentMethodText(successPayment?.method) },
       ],
       notes: [
         "File Excel này có thể mở bằng Excel hoặc LibreOffice để lọc, thống kê và in khi cần.",
@@ -457,7 +538,9 @@ async function downloadReceipt(invoice) {
 function openPaymentModal(invoice) {
   selectedInvoice.value = invoice;
   paymentPercent.value = 100;
+  selectedPaymentMethod.value = 2;
   paymentStep.value = 1;
+  qrImageFailed.value = false;
   isPaymentModalVisible.value = true;
 }
 
@@ -481,8 +564,8 @@ async function submitPaymentRequest() {
     await paymentApi.studentRequest({
       invoiceId: selectedInvoice.value.id,
       percent: canChoosePartial.value ? paymentPercent.value : 100,
-      method: 2,
-      note: `Học viên báo đã chuyển khoản. Nội dung: ${transferContent.value}`,
+      method: selectedPaymentMethod.value,
+      note: `Học viên báo đã thanh toán qua ${selectedMethodInfo.value.label}. Nội dung: ${transferContent.value}`,
     });
     message.success("Đã gửi yêu cầu xác minh thanh toán");
     isPaymentModalVisible.value = false;

@@ -176,7 +176,7 @@ const columns = [
 const fields = [
   { name: 'invoiceId', label: 'Mã hóa đơn', required: true, default: '' },
   { name: 'amount', label: 'Số tiền', type: 'number', required: true, default: 0 },
-  { name: 'method', label: 'Phương thức', type: 'select', options: methodOptions, default: 1 },
+  { name: 'method', label: 'Phương thức', type: 'select', options: methodOptions, default: 2 },
   { name: 'paymentDate', label: 'Ngày thanh toán', type: 'date', default: '' },
   { name: 'status', label: 'Trạng thái', type: 'select', options: statusOptions, default: 1 },
   { name: 'createdBy', label: 'Người tạo', default: 'admin' },
@@ -204,9 +204,10 @@ function customFilter(item) {
     const startDate = new Date(start)
     const endDate = new Date(end)
     endDate.setHours(23, 59, 59, 999)
-    if (item.paymentDate) {
+    if (!item.paymentDate) matchDate = false
+    else {
       const paymentDate = new Date(item.paymentDate)
-      matchDate = paymentDate >= startDate && paymentDate <= endDate
+      matchDate = !Number.isNaN(paymentDate.getTime()) && paymentDate >= startDate && paymentDate <= endDate
     }
   }
 
@@ -232,7 +233,7 @@ function shortCode(code) {
 }
 
 // Method icons and labels
-const methodIconMap = { 1: '💵', 2: '🏧', 3: '📱', 4: '🏦' }
+const methodIconMap = { 1: '🏧', 2: '🏧', 3: '📱', 4: '🏦' }
 const methodLabelMap = Object.fromEntries(methodOptions.map(o => [o.value, o.label]))
 
 function methodIcon(method) {
@@ -240,6 +241,7 @@ function methodIcon(method) {
 }
 
 function methodLabel(method) {
+  if (Number(method) === 1) return methodLabelMap[2] || 'Bank transfer'
   return methodLabelMap[method] || method
 }
 
