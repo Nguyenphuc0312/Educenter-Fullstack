@@ -172,7 +172,7 @@
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Vắng: <span class="font-bold text-rose-700">{{ stats.absent }}</span></div>
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Muộn: <span class="font-bold text-amber-700">{{ stats.late }}</span></div>
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Phép: <span class="font-bold text-blue-700">{{ stats.excused }}</span></div>
-          <div v-if="stats.locked" class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-700"></span> Kh?a h?c ph?: <span class="font-bold text-rose-700">{{ stats.locked }}</span></div>
+          <div v-if="stats.locked" class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-700"></span> Khóa học phí: <span class="font-bold text-rose-700">{{ stats.locked }}</span></div>
         </div>
 
         <div class="flex-1 overflow-auto custom-scrollbar relative">

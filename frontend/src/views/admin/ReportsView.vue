@@ -764,7 +764,7 @@ import { courseApi } from '@/api/courseApi'
 import { classApi } from '@/api/classApi'
 import { enrollmentApi } from '@/api/enrollmentApi'
 import { formatVnd, shortInvoiceCode, shortDateVN } from '@/lib/formatters'
-import { downloadExcelReport, reportFilename } from '@/lib/exportDocuments'
+import { openPdfReport, reportFilename } from '@/lib/exportDocuments'
 import EmptyTableState from '@/components/admin/EmptyTableState.vue'
 
 // EmptyChartState component (inline) — dùng cho chart/table empty
@@ -1585,7 +1585,7 @@ function setTrendRange(value) {
 
 async function handleExport(type) {
   try {
-    message.loading({ content: 'Dang chuan bi tep xuat...', key: 'exporting' })
+    message.loading({ content: 'Dang mo mau PDF...', key: 'exporting' })
     if (type === 'overview') exportOverviewReport()
     else if (type === 'course') exportGroupAmountReport('Bao cao doanh thu theo khoa hoc', 'Tong hop doanh thu va cong no theo tung khoa hoc.', revenueByCourse.value, 'bao-cao-doanh-thu-theo-khoa')
     else if (type === 'class') exportGroupAmountReport('Bao cao doanh thu theo lop hoc', 'Tong hop doanh thu va cong no theo tung lop hoc.', revenueByClass.value, 'bao-cao-doanh-thu-theo-lop')
@@ -1593,7 +1593,7 @@ async function handleExport(type) {
     else if (type === 'debt-class') exportGroupAmountReport('Bao cao cong no theo lop hoc', 'Tong hop cong no hoc phi theo tung lop.', debtByClass.value, 'bao-cao-cong-no-theo-lop')
     else if (type === 'results') await resultApi.export()
     else if (type === 'courses') await courseApi.export()
-    message.success({ content: 'Xuat bao cao thanh cong!', key: 'exporting' })
+    message.success({ content: 'Da mo mau PDF bao cao!', key: 'exporting' })
   } catch (error) {
     message.error({ content: error.message || 'Xuat bao cao that bai', key: 'exporting' })
   }
@@ -1609,10 +1609,10 @@ function exportOverviewReport() {
     { label: 'Hoa don qua han', value: overdueInvoiceCount.value, note: overdueInvoiceCount.value > 0 ? 'Can theo doi' : 'Khong co' },
   ]
 
-  downloadExcelReport({
+  openPdfReport({
     title: 'Bao cao tong quan tai chinh',
     subtitle: 'Theo bo loc ' + activePeriodLabel.value + '. Tong hop doanh thu, cong no, ty le thu va hoa don qua han.',
-    filename: reportFilename('bao-cao-tong-quan-tai-chinh'),
+    filename: reportFilename('bao-cao-tong-quan-tai-chinh', 'pdf'),
     user: { fullName: 'System Admin', username: 'admin' },
     summary: [
       { label: 'Doanh thu', value: formatVnd(totalPaidRevenue.value) },
@@ -1628,7 +1628,7 @@ function exportOverviewReport() {
     rows,
     notes: [
       'Bao cao duoc tao tu du lieu dang hien thi sau bo loc thoi gian tren man Bao cao & Thong ke.',
-      'Co the mo file bang Excel hoac LibreOffice de in, luu tru hoac nop minh chung demo.',
+      'Chon Save as PDF trong hop thoai in de luu tru hoac nop minh chung demo.',
     ],
   })
 }
@@ -1641,10 +1641,10 @@ function exportGroupAmountReport(title, subtitle, sourceRows, filenameStem, debt
   const totalDebt = rows.reduce((sum, item) => sum + Number(item.totalDebt || 0), 0)
   const percentBase = debtOnly ? totalDebt : totalRevenue
 
-  downloadExcelReport({
+  openPdfReport({
     title,
     subtitle: subtitle + ' Bo loc hien tai: ' + activePeriodLabel.value + '.',
-    filename: reportFilename(filenameStem),
+    filename: reportFilename(filenameStem, 'pdf'),
     user: { fullName: 'System Admin', username: 'admin' },
     summary: [
       { label: 'Tong doanh thu', value: formatVnd(totalRevenue) },
@@ -1659,7 +1659,7 @@ function exportGroupAmountReport(title, subtitle, sourceRows, filenameStem, debt
     ],
     rows,
     notes: [
-      'File duoc xuat o dinh dang Excel HTML de giu bo cuc bao cao dep khi mo bang Excel.',
+      'Bao cao duoc mo o dinh dang in/PDF voi bo cuc bang va tong hop ro rang.',
       'Du lieu phan anh danh sach hien co tren man hinh, khong thay doi database.',
     ],
   })
