@@ -425,9 +425,10 @@ export function openPdfReport({
 </body>
 </html>`
 
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=980,height=720')
+  const printWindow = window.open('', '_blank', 'width=980,height=720')
   if (!printWindow) {
-    downloadBlob(html, filename || 'educenter-report.html', 'text/html;charset=utf-8')
+    const fallbackName = String(filename || 'educenter-report.html').replace(/\.pdf$/i, '.html')
+    downloadBlob(html, fallbackName, 'text/html;charset=utf-8')
     return
   }
   printWindow.document.open()
