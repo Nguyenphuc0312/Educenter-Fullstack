@@ -462,7 +462,7 @@ async function exportReport() {
       rows: filteredInvoices.value,
       notes: [
         "File này được tạo từ dữ liệu hóa đơn đang hiển thị trên hệ thống.",
-        "Ch?n Save as PDF trong h?p tho?i in ?? l?u ho?c n?p minh ch?ng.",
+        "Chọn Save as PDF trong hộp thoại in để lưu hoặc nộp minh chứng.",
       ],
     });
     message.success({ content: "Xuất báo cáo học phí thành công.", key: "exportReport", duration: 3 });
@@ -523,11 +523,11 @@ async function downloadReceipt(invoice) {
         { label: "Phương thức", value: paymentMethodText(successPayment?.method) },
       ],
       notes: [
-        "Ch?n Save as PDF trong h?p tho?i in ?? l?u ho?c n?p minh ch?ng.",
+        "Chọn Save as PDF trong hộp thoại in để lưu hoặc nộp minh chứng.",
         "Thông tin được tạo từ dữ liệu hóa đơn hiện có của học viên.",
       ],
     });
-    message.success({ content: `?? m? m?u PDF bi?n lai: ${invoice.invoiceCode}`, key: `pdf-${invoice.id}`, duration: 2 });
+    message.success({ content: `Đã mở mẫu PDF biên lai: ${invoice.invoiceCode}`, key: `pdf-${invoice.id}`, duration: 2 });
   } catch (err) {
     message.error({ content: `Không thể tải biên lai cho hóa đơn ${invoice.invoiceCode}.`, key: `pdf-${invoice.id}`, duration: 2 });
   } finally {

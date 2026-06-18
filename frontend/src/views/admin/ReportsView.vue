@@ -1585,51 +1585,47 @@ function setTrendRange(value) {
 
 async function handleExport(type) {
   try {
-    message.loading({ content: 'Dang mo mau PDF...', key: 'exporting' })
+    message.loading({ content: 'Đang mở mẫu PDF...', key: 'exporting' })
     if (type === 'overview') exportOverviewReport()
-    else if (type === 'course') exportGroupAmountReport('Bao cao doanh thu theo khoa hoc', 'Tong hop doanh thu va cong no theo tung khoa hoc.', revenueByCourse.value, 'bao-cao-doanh-thu-theo-khoa')
-    else if (type === 'class') exportGroupAmountReport('Bao cao doanh thu theo lop hoc', 'Tong hop doanh thu va cong no theo tung lop hoc.', revenueByClass.value, 'bao-cao-doanh-thu-theo-lop')
-    else if (type === 'debt-student') exportGroupAmountReport('Bao cao cong no theo hoc vien', 'Danh sach hoc vien con cong no hoc phi.', debtByStudentRanked.value, 'bao-cao-cong-no-theo-hoc-vien', true)
-    else if (type === 'debt-class') exportGroupAmountReport('Bao cao cong no theo lop hoc', 'Tong hop cong no hoc phi theo tung lop.', debtByClass.value, 'bao-cao-cong-no-theo-lop')
+    else if (type === 'course') exportGroupAmountReport('Báo cáo doanh thu theo khóa học', 'Tổng hợp doanh thu và công nợ theo từng khóa học.', revenueByCourse.value, 'bao-cao-doanh-thu-theo-khoa')
+    else if (type === 'class') exportGroupAmountReport('Báo cáo doanh thu theo lớp học', 'Tổng hợp doanh thu và công nợ theo từng lớp học.', revenueByClass.value, 'bao-cao-doanh-thu-theo-lop')
+    else if (type === 'debt-student') exportGroupAmountReport('Báo cáo công nợ theo học viên', 'Danh sách học viên còn công nợ học phí.', debtByStudentRanked.value, 'bao-cao-cong-no-theo-hoc-vien', true)
+    else if (type === 'debt-class') exportGroupAmountReport('Báo cáo công nợ theo lớp học', 'Tổng hợp công nợ học phí theo từng lớp.', debtByClass.value, 'bao-cao-cong-no-theo-lop')
     else if (type === 'results') await resultApi.export()
     else if (type === 'courses') await courseApi.export()
-    message.success({ content: 'Da mo mau PDF bao cao!', key: 'exporting' })
+    message.success({ content: 'Đã mở mẫu PDF báo cáo!', key: 'exporting' })
   } catch (error) {
-    message.error({ content: error.message || 'Xuat bao cao that bai', key: 'exporting' })
+    message.error({ content: error.message || 'Xuất báo cáo thất bại', key: 'exporting' })
   }
 }
 
 function exportOverviewReport() {
   const rows = [
-    { label: 'Tong doanh thu', value: formatVnd(totalPaidRevenue.value), note: 'Tu giao dich thanh cong trong ky loc' },
-    { label: 'Tong cong no', value: formatVnd(totalDebtRevenue.value), note: 'Hoa don con no' },
-    { label: 'Tong phai thu', value: formatVnd(totalExpectedRevenue.value), note: 'Da thu + cong no' },
-    { label: 'Ty le thu hoc phi', value: String(collectionRate.value) + '%', note: 'Doanh thu / tong phai thu' },
-    { label: 'So giao dich trong ky', value: filteredPayments.value.length, note: activePeriodLabel.value },
-    { label: 'Hoa don qua han', value: overdueInvoiceCount.value, note: overdueInvoiceCount.value > 0 ? 'Can theo doi' : 'Khong co' },
+    { label: 'Tổng doanh thu', value: formatVnd(totalPaidRevenue.value), note: 'Từ giao dịch thành công trong kỳ lọc' },
+    { label: 'Tổng công nợ', value: formatVnd(totalDebtRevenue.value), note: 'Hóa đơn còn nợ' },
+    { label: 'Tổng phải thu', value: formatVnd(totalExpectedRevenue.value), note: 'Đã thu + công nợ' },
+    { label: 'Tỷ lệ thu học phí', value: String(collectionRate.value) + '%', note: 'Doanh thu / tổng phải thu' },
+    { label: 'Số giao dịch trong kỳ', value: filteredPayments.value.length, note: activePeriodLabel.value },
+    { label: 'Hóa đơn quá hạn', value: overdueInvoiceCount.value, note: overdueInvoiceCount.value > 0 ? 'Cần theo dõi' : 'Không có' },
   ]
 
   openPdfReport({
-    title: 'Bao cao tong quan tai chinh',
-    subtitle: 'Theo bo loc ' + activePeriodLabel.value + '. Tong hop doanh thu, cong no, ty le thu va hoa don qua han.',
+    title: 'Báo cáo tổng quan tài chính',
+    subtitle: 'Theo bộ lọc ' + activePeriodLabel.value + '. Tổng hợp doanh thu, công nợ, tỷ lệ thu và hóa đơn quá hạn.',
     filename: reportFilename('bao-cao-tong-quan-tai-chinh', 'pdf'),
     user: { fullName: 'System Admin', username: 'admin' },
     summary: [
       { label: 'Doanh thu', value: formatVnd(totalPaidRevenue.value) },
-      { label: 'Cong no', value: formatVnd(totalDebtRevenue.value) },
-      { label: 'Ty le thu', value: String(collectionRate.value) + '%' },
-      { label: 'Giao dich', value: filteredPayments.value.length },
+      { label: 'Công nợ', value: formatVnd(totalDebtRevenue.value) },
+      { label: 'Tỷ lệ thu', value: String(collectionRate.value) + '%' },
+      { label: 'Giao dịch', value: filteredPayments.value.length },
     ],
     columns: [
-      { label: 'Chi so', value: (x) => x.label },
-      { label: 'Gia tri', value: (x) => x.value },
-      { label: 'Ghi chu', value: (x) => x.note },
+      { label: 'Chỉ số', value: (x) => x.label },
+      { label: 'Giá trị', value: (x) => x.value },
+      { label: 'Ghi chú', value: (x) => x.note },
     ],
     rows,
-    notes: [
-      'Bao cao duoc tao tu du lieu dang hien thi sau bo loc thoi gian tren man Bao cao & Thong ke.',
-      'Chon Save as PDF trong hop thoai in de luu tru hoac nop minh chung demo.',
-    ],
   })
 }
 
@@ -1643,25 +1639,21 @@ function exportGroupAmountReport(title, subtitle, sourceRows, filenameStem, debt
 
   openPdfReport({
     title,
-    subtitle: subtitle + ' Bo loc hien tai: ' + activePeriodLabel.value + '.',
+    subtitle: subtitle + ' Bộ lọc hiện tại: ' + activePeriodLabel.value + '.',
     filename: reportFilename(filenameStem, 'pdf'),
     user: { fullName: 'System Admin', username: 'admin' },
     summary: [
-      { label: 'Tong doanh thu', value: formatVnd(totalRevenue) },
-      { label: 'Tong cong no', value: formatVnd(totalDebt) },
-      { label: 'So dong', value: rows.length },
+      { label: 'Tổng doanh thu', value: formatVnd(totalRevenue) },
+      { label: 'Tổng công nợ', value: formatVnd(totalDebt) },
+      { label: 'Số dòng', value: rows.length },
     ],
     columns: [
-      { label: 'Ten', value: (x) => x.name || '-' },
+      { label: 'Tên', value: (x) => x.name || '-' },
       { label: 'Doanh thu', value: (x) => formatVnd(x.totalRevenue || 0) },
-      { label: 'Cong no', value: (x) => formatVnd(x.totalDebt || 0) },
-      { label: 'Ty trong', value: (x) => percentBase ? String(Math.round(Number((debtOnly ? x.totalDebt : x.totalRevenue) || 0) / percentBase * 100)) + '%' : '0%' },
+      { label: 'Công nợ', value: (x) => formatVnd(x.totalDebt || 0) },
+      { label: 'Tỷ trọng', value: (x) => percentBase ? String(Math.round(Number((debtOnly ? x.totalDebt : x.totalRevenue) || 0) / percentBase * 100)) + '%' : '0%' },
     ],
     rows,
-    notes: [
-      'Bao cao duoc mo o dinh dang in/PDF voi bo cuc bang va tong hop ro rang.',
-      'Du lieu phan anh danh sach hien co tren man hinh, khong thay doi database.',
-    ],
   })
 }
 

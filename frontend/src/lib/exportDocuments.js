@@ -93,7 +93,7 @@ export function downloadExcelReport({
           ${columns.map((column) => `<td>${escapeHtml(column.value(row))}</td>`).join('')}
         </tr>
       `).join('')
-    : `<tr><td colspan="${columns.length + 1}" class="empty">Khong co du lieu</td></tr>`
+    : `<tr><td colspan="${columns.length + 1}" class="empty">Không có dữ liệu</td></tr>`
 
   const html = `<!doctype html>
 <html lang="vi">
@@ -201,9 +201,9 @@ export function downloadExcelReport({
       <p class="subtitle">${escapeHtml(subtitle || 'Bang Excel duoc tao tu du lieu hien tai tren he thong.')}</p>
     </section>
     <section class="meta">
-      <div class="meta-card"><span class="label">Nguoi xuat</span><span class="value">${escapeHtml(user?.fullName || user?.username || 'Hoc vien')}</span></div>
+      <div class="meta-card"><span class="label">Người xuất</span><span class="value">${escapeHtml(user?.fullName || user?.username || 'Học viên')}</span></div>
       <div class="meta-card"><span class="label">Tai khoan</span><span class="value">${escapeHtml(user?.username || user?.email || '-')}</span></div>
-      <div class="meta-card"><span class="label">Ngay xuat</span><span class="value">${generatedAt.toLocaleString('vi-VN')}</span></div>
+      <div class="meta-card"><span class="label">Ngày xuất</span><span class="value">${generatedAt.toLocaleString('vi-VN')}</span></div>
     </section>
     <section class="content">
       ${summary.length ? `<div class="summary">${summary.map((item) => `
@@ -215,7 +215,7 @@ export function downloadExcelReport({
       </table>
       ${notes.length ? `<div class="notes">${notes.map((note) => `<div>${escapeHtml(note)}</div>`).join('')}</div>` : ''}
       <div class="footer">
-        <span>EduCenter - He thong quan ly trung tam dao tao</span>
+        <span>EduCenter - Hệ thống quản lý trung tâm đào tạo</span>
         <span>${escapeHtml(filename)}</span>
       </div>
     </section>
@@ -248,7 +248,7 @@ export function openPdfReport({
           ${columns.map((column) => `<td>${escapeHtml(column.value(row))}</td>`).join('')}
         </tr>
       `).join('')
-    : `<tr><td colspan="${columns.length + 1}" class="empty">Khong co du lieu</td></tr>`
+    : `<tr><td colspan="${columns.length + 1}" class="empty">Không có dữ liệu</td></tr>`
 
   const html = `<!doctype html>
 <html lang="vi">
@@ -381,26 +381,26 @@ export function openPdfReport({
 </head>
 <body>
   <div class="print-actions">
-    <button class="secondary" onclick="window.close()">Dong</button>
-    <button class="primary" onclick="window.print()">Luu PDF / In</button>
+    <button class="secondary" onclick="window.close()">Đóng</button>
+    <button class="primary" onclick="window.print()">Lưu PDF / In</button>
   </div>
   <main class="sheet">
     <section class="header">
       <div>
         <div class="brand">EduCenter</div>
         <h1>${escapeHtml(title)}</h1>
-        <p class="subtitle">${escapeHtml(subtitle || 'Bao cao duoc tao tu he thong EduCenter.')}</p>
+        <p class="subtitle">${escapeHtml(subtitle || 'Báo cáo được tạo từ hệ thống EduCenter.')}</p>
       </div>
       <div class="stamp">
-        <strong>Ngay xuat</strong><br />
+        <strong>Ngày xuất</strong><br />
         ${generatedAt.toLocaleString('vi-VN')}<br />
         <span>${escapeHtml(filename || '')}</span>
       </div>
     </section>
     <section class="meta">
-      <div class="box white"><span class="label">Nguoi xuat</span><span class="value">${escapeHtml(user?.fullName || user?.username || 'System')}</span></div>
-      <div class="box white"><span class="label">Tai khoan</span><span class="value">${escapeHtml(user?.username || user?.email || '-')}</span></div>
-      <div class="box white"><span class="label">Dinh dang</span><span class="value">PDF / Print</span></div>
+      <div class="box white"><span class="label">Người xuất</span><span class="value">${escapeHtml(user?.fullName || user?.username || 'System')}</span></div>
+      <div class="box white"><span class="label">Tài khoản</span><span class="value">${escapeHtml(user?.username || user?.email || '-')}</span></div>
+      <div class="box white"><span class="label">Định dạng</span><span class="value">PDF / In</span></div>
     </section>
     ${summary.length ? `<section class="summary">${summary.map((item) => `
       <div class="box"><span class="label">${escapeHtml(item.label)}</span><span class="value">${escapeHtml(item.value)}</span></div>
@@ -411,11 +411,11 @@ export function openPdfReport({
     </table>
     ${notes.length ? `<section class="notes">${notes.map((note) => `<div>${escapeHtml(note)}</div>`).join('')}</section>` : ''}
     <section class="signatures">
-      <div><strong>Nguoi lap</strong><div class="sign-space"></div><span>Ky, ghi ro ho ten</span></div>
-      <div><strong>Xac nhan trung tam</strong><div class="sign-space"></div><span>Ky, ghi ro ho ten</span></div>
+      <div><strong>Người lập</strong><div class="sign-space"></div><span>Ký, ghi rõ họ tên</span></div>
+      <div><strong>Xác nhận trung tâm</strong><div class="sign-space"></div><span>Ký, ghi rõ họ tên</span></div>
     </section>
     <section class="footer">
-      <span>EduCenter - He thong quan ly trung tam dao tao</span>
+      <span>EduCenter - Hệ thống quản lý trung tâm đào tạo</span>
       <span>${escapeHtml(filename || '')}</span>
     </section>
   </main>
