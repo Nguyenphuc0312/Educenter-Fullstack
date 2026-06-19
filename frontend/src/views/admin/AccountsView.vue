@@ -257,6 +257,11 @@ function normalizeAccountOut(payload) {
 
   if (!normalized.password) delete normalized.password
   if (Number(normalized.role) === 1) normalized.role = 3
+  if (!normalized.referenceId || !String(normalized.referenceId).trim()) {
+    normalized.referenceId = null
+  } else {
+    normalized.referenceId = String(normalized.referenceId).trim()
+  }
   return normalized
 }
 
