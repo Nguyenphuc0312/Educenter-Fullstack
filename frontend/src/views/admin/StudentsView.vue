@@ -118,6 +118,12 @@ import { STUDENT_STATUS, GENDER, toOptions } from '@/lib/constants'
 
 const statusOptions = toOptions(STUDENT_STATUS, { 1: 'green', 2: 'default', 3: 'red' })
 const genderOptions = toOptions(GENDER)
+const phoneRules = [
+  {
+    pattern: /^0\d{9}$/,
+    message: 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0'
+  }
+]
 
 // Custom filter states
 const filterGender = ref(undefined)
@@ -136,7 +142,7 @@ const fields = [
   { name: 'studentCode', label: 'Mã học viên', required: true, editOnly: true, default: '' },
   { name: 'fullName', label: 'Họ tên', required: true, default: '' },
   { name: 'email', label: 'Email', required: true, default: '' },
-  { name: 'phone', label: 'Điện thoại', default: '' },
+  { name: 'phone', label: 'Điện thoại', required: true, default: '', rules: phoneRules },
   { name: 'dateOfBirth', label: 'Ngày sinh', type: 'date', default: '' },
   { name: 'gender', label: 'Giới tính', type: 'select', options: genderOptions, default: 0 },
   { name: 'address', label: 'Địa chỉ', fullWidth: true, default: '' },

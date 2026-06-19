@@ -276,7 +276,7 @@
                 :key="field.name"
                 :label="field.label"
                 :name="field.name"
-                :rules="field.required ? [{ required: true, message: `Vui lòng nhập ${field.label.toLowerCase()}` }] : []"
+                :rules="getFieldRules(field)"
                 :class="field.fullWidth ? 'md:col-span-2' : ''"
                 class="mb-0"
               >
@@ -693,6 +693,17 @@ function normalizeSelectValue(field, value) {
 
 function resolveFieldOptions(field) {
   return typeof field.options === 'function' ? field.options(formState, editingRecord.value) : field.options || []
+}
+
+function getFieldRules(field) {
+  const rules = []
+  if (field.required) {
+    rules.push({ required: true, message: `Vui lòng nhập ${field.label.toLowerCase()}` })
+  }
+  if (Array.isArray(field.rules)) {
+    rules.push(...field.rules)
+  }
+  return rules
 }
 
 function resolveFieldDisabled(field) {

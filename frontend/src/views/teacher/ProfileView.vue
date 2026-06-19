@@ -239,6 +239,7 @@ async function onAvatarSelected(event) {
 // --- UPDATE PROFILE LOGIC ---
 const isEditModalVisible = ref(false)
 const isSaving = ref(false)
+const phonePattern = /^0\d{9}$/
 const editForm = ref({
   phone: '',
   bio: ''
@@ -253,11 +254,16 @@ function openEditModal() {
 }
 
 async function saveProfile() {
+  if (!phonePattern.test(String(editForm.value.phone || '').trim())) {
+    message.error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.')
+    return
+  }
+
   isSaving.value = true
   try {
     const payload = {
       ...teacher.value,
-      phone: editForm.value.phone,
+      phone: String(editForm.value.phone).trim(),
       bio: editForm.value.bio
     }
     

@@ -38,8 +38,8 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label for="phone" class="text-xs font-semibold text-base-primary">Số điện thoại</label>
-          <input id="phone" v-model="formData.phone" type="tel" placeholder="0987654321" :disabled="isLoading"
+          <label for="phone" class="text-xs font-semibold text-base-primary">Số điện thoại <span class="text-red-500">*</span></label>
+          <input id="phone" v-model="formData.phone" type="tel" required inputmode="numeric" pattern="^0[0-9]{9}$" placeholder="0987654321" :disabled="isLoading"
             class="w-full px-4 py-3 text-sm rounded-xl border border-base bg-card-base text-base-primary placeholder:text-base-muted focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all disabled:opacity-55" />
         </div>
 
@@ -124,6 +124,7 @@ const isLoading = ref(false)
 const errorMsg = ref('')
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
+const phonePattern = /^0\d{9}$/
 const formData = reactive({
   username: '',
   password: '',
@@ -136,8 +137,13 @@ const formData = reactive({
 async function handleSubmit() {
   const { username, password, confirmPassword, fullName, email, phone } = formData
 
-  if (!username || !password || !fullName || !email) {
+  if (!username || !password || !fullName || !email || !phone) {
     errorMsg.value = 'Vui lòng điền đầy đủ các thông tin bắt buộc.'
+    return
+  }
+
+  if (!phonePattern.test(String(phone).trim())) {
+    errorMsg.value = 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.'
     return
   }
 
@@ -150,7 +156,7 @@ async function handleSubmit() {
   isLoading.value = true
 
   try {
-    await authApi.register({ username, password, fullName, email, phone, role: 'Student' })
+    await authApi.register({ username, password, fullName, email, phone: String(phone).trim(), role: 'Student' })
     message.success('Đăng ký tài khoản học viên thành công! Vui lòng đăng nhập.')
     router.push('/login')
   } catch (err) {

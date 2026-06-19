@@ -181,7 +181,7 @@
 
           <label class="space-y-1">
             <span class="text-xs font-semibold text-base-primary">Số điện thoại</span>
-            <input v-model.trim="profileForm.phone" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm" required />
+            <input v-model.trim="profileForm.phone" type="tel" inputmode="numeric" pattern="^0[0-9]{9}$" class="w-full px-3 py-2 rounded-lg border border-base bg-card-base text-sm" required />
           </label>
 
           <label class="space-y-1">
@@ -250,6 +250,7 @@ const isEnrolling = ref(false)
 const profileModalOpen = ref(false)
 const profileSubmitting = ref(false)
 const pendingClassId = ref(null)
+const phonePattern = /^0\d{9}$/
 const profileForm = reactive({
   fullName: '',
   email: '',
@@ -367,12 +368,17 @@ async function submitProfileAndEnroll() {
     return
   }
 
+  if (!phonePattern.test(String(profileForm.phone).trim())) {
+    message.error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.')
+    return
+  }
+
   profileSubmitting.value = true
   try {
     await authStore.completeStudentProfile({
       fullName: profileForm.fullName,
       email: profileForm.email,
-      phone: profileForm.phone,
+      phone: String(profileForm.phone).trim(),
       dateOfBirth: new Date(profileForm.dateOfBirth).toISOString(),
       gender: profileForm.gender,
       address: profileForm.address,

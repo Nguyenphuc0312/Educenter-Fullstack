@@ -117,6 +117,12 @@ import { teacherApi } from '@/api/teacherApi'
 import { TEACHER_STATUS, toOptions } from '@/lib/constants'
 
 const statusOptions = toOptions(TEACHER_STATUS, { 0: 'green', 1: 'default' })
+const phoneRules = [
+  {
+    pattern: /^0\d{9}$/,
+    message: 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0'
+  }
+]
 
 // Custom filter states
 const filterSpecialization = ref(undefined)
@@ -135,7 +141,7 @@ const columns = [
 const fields = [
   { name: 'fullName', label: 'Họ tên', required: true, default: '' },
   { name: 'email', label: 'Email', required: true, default: '' },
-  { name: 'phone', label: 'Điện thoại', default: '' },
+  { name: 'phone', label: 'Điện thoại', required: true, default: '', rules: phoneRules },
   { name: 'specialization', label: 'Chuyên môn', default: '' },
   { name: 'experienceYears', label: 'Số năm kinh nghiệm', type: 'number', default: 0 },
   { name: 'rating', label: 'Đánh giá', type: 'number', default: 5 },

@@ -167,6 +167,12 @@ import { accountApi } from '@/api/accountApi'
 import { ACCOUNT_STATUS, ROLE_INT, USER_ROLE, normalizeRole, toOptions } from '@/lib/constants'
 
 const statusOptions = toOptions(ACCOUNT_STATUS, { 1: 'green', 2: 'red' })
+const phoneRules = [
+  {
+    pattern: /^0\d{9}$/,
+    message: 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0'
+  }
+]
 
 // Custom filter states
 const filterRole = ref(undefined)
@@ -201,7 +207,7 @@ const fields = [
   },
   { name: 'fullName', label: 'Họ tên', required: true, default: '' },
   { name: 'email', label: 'Email', required: true, default: '' },
-  { name: 'phone', label: 'Điện thoại', default: '' },
+  { name: 'phone', label: 'Điện thoại', required: true, default: '', rules: phoneRules },
   {
     name: 'role',
     label: 'Vai trò',

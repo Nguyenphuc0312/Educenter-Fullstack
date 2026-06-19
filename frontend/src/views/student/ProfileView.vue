@@ -277,6 +277,7 @@ async function onAvatarSelected(event) {
 // --- XỬ LÝ FORM CẬP NHẬT HỒ SƠ ---
 const isEditModalVisible = ref(false)
 const isSaving = ref(false)
+const phonePattern = /^0\d{9}$/
 const editForm = ref({
   fullName: '',
   email: '',
@@ -302,13 +303,18 @@ function openEditModal() {
 }
 
 async function saveProfile() {
+  if (!phonePattern.test(String(editForm.value.phone || '').trim())) {
+    message.error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.')
+    return
+  }
+
   isSaving.value = true
   try {
     // Chuẩn bị Payload
     const payload = {
       ...student.value, // Giữ lại ID và các trường ẩn
       fullName: editForm.value.fullName,
-      phone: editForm.value.phone,
+      phone: String(editForm.value.phone).trim(),
       dateOfBirth: editForm.value.dateOfBirth ? new Date(editForm.value.dateOfBirth).toISOString() : null,
       gender: editForm.value.gender,
       address: editForm.value.address
