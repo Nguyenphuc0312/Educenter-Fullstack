@@ -1,4 +1,5 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using StudentAttendanceService.Data;
 using StudentAttendanceService.Dtos;
 using StudentAttendanceService.Entities;
 using StudentAttendanceService.Enums;
@@ -158,7 +159,7 @@ public interface IClassCapacityClient
     Task<decimal?> GetCourseTuitionFeeAsync(Guid courseId, CancellationToken cancellationToken);
 }
 
-public sealed record ClassSnapshot(Guid Id, Guid CourseId, DateTime StartDate, DateTime EndDate, int CurrentStudents, int MaxStudents, string Status);
+public sealed record ClassSnapshot(Guid Id, Guid CourseId, DateTime StartDate, DateTime EndDate, int CurrentStudents, int MaxStudents, string Status, IReadOnlyList<Guid>? TeacherIds = null, IReadOnlyList<string>? TeacherNames = null);
 
 public sealed class ClassCapacityClient(HttpClient httpClient) : IClassCapacityClient
 {
@@ -271,7 +272,28 @@ public sealed class PaymentLearningHoldClient(HttpClient httpClient) : IPaymentL
     }
 }
 
-public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IRepository<AttendanceSession> attendanceSessions, IRepository<AttendanceRecord> attendanceRecords, IClassCapacityClient classCapacity, IPaymentInvoiceClient paymentInvoices) : IEnrollmentService
+public interface IPaymentNotificationClient
+{
+    Task SendEmailAsync(string toEmail, string subject, string body, string? bearerToken, CancellationToken cancellationToken);
+}
+
+public sealed class PaymentNotificationClient(HttpClient httpClient) : IPaymentNotificationClient
+{
+    private sealed record SendNotificationRequest(string ToEmail, string Subject, string Body);
+
+    public async Task SendEmailAsync(string toEmail, string subject, string body, string? bearerToken, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/notifications/email");
+        if (!string.IsNullOrWhiteSpace(bearerToken)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        request.Content = JsonContent.Create(new SendNotificationRequest(toEmail, subject, body));
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.IsSuccessStatusCode) return;
+        var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+        throw new AppException($"Cannot send notification. Payment service returned {(int)response.StatusCode}: {detail}", StatusCodes.Status502BadGateway);
+    }
+}
+
+public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepository<Student> students, IRepository<AttendanceSession> attendanceSessions, IRepository<AttendanceRecord> attendanceRecords, IClassCapacityClient classCapacity, IPaymentInvoiceClient paymentInvoices, IPaymentNotificationClient notifications) : IEnrollmentService
 {
     public async Task<IReadOnlyList<EnrollmentResponse>> GetAllAsync(CancellationToken cancellationToken)
     {
@@ -349,6 +371,7 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
         entity.UpdatedAt = now;
         await EnsureAttendanceRecordsForEnrollmentAsync(entity, now, cancellationToken);
         await enrollments.SaveChangesAsync(cancellationToken);
+        await TryNotifyEnrollmentConfirmedAsync(entity, bearerToken, cancellationToken);
         return entity.ToResponse();
     }
 
@@ -373,6 +396,29 @@ public sealed class EnrollmentService(IRepository<Enrollment> enrollments, IRepo
 
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
+    private async Task TryNotifyEnrollmentConfirmedAsync(Enrollment enrollment, string? bearerToken, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var student = await students.GetByIdAsync(enrollment.StudentId, cancellationToken);
+            if (student is null || string.IsNullOrWhiteSpace(student.Email)) return;
+            await notifications.SendEmailAsync(
+                student.Email,
+                $"EduCenter xác nhận ghi danh lớp {enrollment.ClassNameSnapshot}",
+                $"""
+                <p>Chào <strong>{student.FullName}</strong>,</p>
+                <p>Ghi danh của bạn vào lớp <strong>{enrollment.ClassNameSnapshot}</strong> thuộc khóa <strong>{enrollment.CourseNameSnapshot}</strong> đã được xác nhận.</p>
+                <p>Trạng thái hiện tại: <strong>{enrollment.Status}</strong>.</p>
+                <p>Vui lòng theo dõi lịch học và học phí trong tài khoản EduCenter.</p>
+                """,
+                bearerToken,
+                cancellationToken);
+        }
+        catch
+        {
+            // Email notification must not rollback enrollment confirmation.
+        }
+    }
     private async Task<IReadOnlyList<StudentResponse>> ClassStudentsInternalAsync(Guid classId, CancellationToken cancellationToken)
     {
         var rows = await enrollments.Query().Include(x => x.Student).Where(x => x.ClassId == classId).ToListAsync(cancellationToken);
@@ -451,6 +497,7 @@ public interface IAttendanceService
     Task<IReadOnlyList<AttendanceRecordResponse>> RecordsByStudentAsync(Guid studentId, CancellationToken cancellationToken);
     Task<IReadOnlyList<AttendanceRecordResponse>> BulkAsync(BulkAttendanceRecordRequest request, string? bearerToken, CancellationToken cancellationToken);
     Task<AttendanceRecordResponse> UpdateRecordAsync(Guid id, UpdateAttendanceRecordRequest request, string? bearerToken, CancellationToken cancellationToken);
+    Task DeleteSessionAsync(Guid id, bool force, CancellationToken cancellationToken);
     Task DeleteRecordAsync(Guid id, CancellationToken cancellationToken);
     Task<AttendanceSummaryResponse> ClassSummaryAsync(Guid classId, CancellationToken cancellationToken);
     Task<AttendanceSummaryResponse> StudentSummaryAsync(Guid studentId, CancellationToken cancellationToken);
@@ -463,6 +510,7 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
     public async Task<AttendanceSessionResponse> CreateSessionAsync(CreateAttendanceSessionRequest request, CancellationToken cancellationToken)
     {
         if (await sessions.AnyAsync(x => x.ClassId == request.ClassId && x.AttendanceDate.Date == request.AttendanceDate.Date && x.SessionNumber == request.SessionNumber, cancellationToken)) throw Conflict("Attendance session already exists");
+        if (await sessions.AnyAsync(x => x.ClassId == request.ClassId && x.ScheduleId == request.ScheduleId && x.AttendanceDate.Date == request.AttendanceDate.Date, cancellationToken)) throw Conflict("Attendance session already exists for this schedule and date");
         var classInfo = await classCapacity.GetClassAsync(request.ClassId, cancellationToken) ?? throw NotFound("Class");
         if (request.AttendanceDate.Date < classInfo.StartDate.Date || request.AttendanceDate.Date > classInfo.EndDate.Date) throw Conflict("Attendance date must be within the class date range");
 
@@ -508,9 +556,9 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
         var now = DateTime.UtcNow;
         foreach (var item in request.Records)
         {
-            if (!await enrollments.AnyAsync(x => x.StudentId == item.StudentId && x.ClassId == session.ClassId && (x.Status == EnrollmentStatus.Confirmed || x.Status == EnrollmentStatus.Studying), cancellationToken)) throw Conflict("Only confirmed or studying students can be marked");
-            await EnsureAttendanceAllowedAsync(item.StudentId, session.ClassId, bearerToken, cancellationToken);
             var student = await students.GetByIdAsync(item.StudentId, cancellationToken) ?? throw NotFound("Student");
+            if (!await enrollments.AnyAsync(x => x.StudentId == item.StudentId && x.ClassId == session.ClassId && (x.Status == EnrollmentStatus.Confirmed || x.Status == EnrollmentStatus.Studying), cancellationToken)) throw Conflict($"{student.FullName} is not confirmed or studying in this class");
+            await EnsureAttendanceAllowedAsync(item.StudentId, student.FullName, session.ClassId, bearerToken, cancellationToken);
             var existing = await records.Query().FirstOrDefaultAsync(x => x.AttendanceSessionId == request.AttendanceSessionId && x.StudentId == item.StudentId, cancellationToken);
             if (existing is null)
             {
@@ -529,10 +577,19 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
         var entity = await records.Query().Include(x => x.AttendanceSession).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Attendance record");
         if (entity.AttendanceSession?.Status == AttendanceSessionStatus.Locked) throw Conflict("Attendance session is locked");
         var classId = entity.AttendanceSession?.ClassId ?? throw NotFound("Attendance session");
-        await EnsureAttendanceAllowedAsync(entity.StudentId, classId, bearerToken, cancellationToken);
+        await EnsureAttendanceAllowedAsync(entity.StudentId, entity.StudentNameSnapshot, classId, bearerToken, cancellationToken);
         entity.Status = request.Status; entity.Note = request.Note; entity.MarkedAt = DateTime.UtcNow;
         await records.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();
+    }
+    public async Task DeleteSessionAsync(Guid id, bool force, CancellationToken cancellationToken)
+    {
+        var entity = await sessions.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Attendance session");
+        if (entity.Status == AttendanceSessionStatus.Locked && !force) throw Conflict("Locked attendance session cannot be deleted");
+        var rows = await records.Query().Where(x => x.AttendanceSessionId == id).ToListAsync(cancellationToken);
+        foreach (var row in rows) records.Remove(row);
+        sessions.Remove(entity);
+        await sessions.SaveChangesAsync(cancellationToken);
     }
     public async Task DeleteRecordAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -579,9 +636,9 @@ public sealed class AttendanceService(IRepository<AttendanceSession> sessions, I
         decimal score = rows.Sum(x => x.Status switch { AttendanceStatus.Present => 1m, AttendanceStatus.Late => 0.5m, AttendanceStatus.Excused => 0.5m, _ => 0m });
         return Math.Round(score / expectedRows * 100, 2);
     }
-    private async Task EnsureAttendanceAllowedAsync(Guid studentId, Guid classId, string? bearerToken, CancellationToken cancellationToken)
+    private async Task EnsureAttendanceAllowedAsync(Guid studentId, string studentName, Guid classId, string? bearerToken, CancellationToken cancellationToken)
     {
-        if (await learningHolds.HasLearningHoldAsync(studentId, classId, bearerToken, cancellationToken)) throw Conflict("Học viên đang bị khóa điểm danh do quá hạn học phí");
+        if (await learningHolds.HasLearningHoldAsync(studentId, classId, bearerToken, cancellationToken)) throw Conflict($"{studentName} đang bị khóa điểm danh do quá hạn học phí");
     }
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
@@ -607,6 +664,7 @@ public sealed class ResultService(IRepository<StudentResult> results, IRepositor
     public async Task<StudentResultResponse> CreateAsync(CreateStudentResultRequest request, CancellationToken cancellationToken)
     {
         var student = await students.GetByIdAsync(request.StudentId, cancellationToken) ?? throw NotFound("Student");
+        await EnsureStudentBelongsToClassAsync(request.StudentId, request.ClassId, cancellationToken);
         if (await results.AnyAsync(x => x.StudentId == request.StudentId && x.ClassId == request.ClassId, cancellationToken)) throw Conflict("Result already exists for this student and class");
         var now = DateTime.UtcNow;
         var attendancePercent = await AttendancePercentAsync(request.StudentId, request.ClassId, request.AttendancePercent, cancellationToken);
@@ -619,6 +677,7 @@ public sealed class ResultService(IRepository<StudentResult> results, IRepositor
     public async Task<StudentResultResponse> UpdateAsync(Guid id, UpdateStudentResultRequest request, CancellationToken cancellationToken)
     {
         var entity = await results.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Result");
+        await EnsureStudentBelongsToClassAsync(entity.StudentId, request.ClassId, cancellationToken);
         if (await results.Query().AnyAsync(x => x.Id != id && x.StudentId == entity.StudentId && x.ClassId == request.ClassId, cancellationToken)) throw Conflict("Result already exists for this student and class");
         var attendancePercent = await AttendancePercentAsync(entity.StudentId, request.ClassId, request.AttendancePercent, cancellationToken);
         entity.CourseId = request.CourseId; entity.CourseNameSnapshot = request.CourseNameSnapshot; entity.ClassId = request.ClassId; entity.ClassNameSnapshot = request.ClassNameSnapshot; entity.MidtermScore = request.MidtermScore; entity.FinalScore = request.FinalScore; entity.AttendancePercent = attendancePercent; entity.Feedback = request.Feedback; entity.EvaluatedByTeacherId = request.EvaluatedByTeacherId; entity.EvaluatedByTeacherName = request.EvaluatedByTeacherName; entity.EvaluatedAt = DateTime.UtcNow; entity.UpdatedAt = DateTime.UtcNow;
@@ -637,6 +696,16 @@ public sealed class ResultService(IRepository<StudentResult> results, IRepositor
         x.AverageScore = Math.Round(x.MidtermScore * 0.4m + x.FinalScore * 0.6m, 2);
         x.ResultStatus = x.AverageScore >= 5 && x.AttendancePercent >= 70 ? ResultStatus.Passed : ResultStatus.Failed;
     }
+    private async Task EnsureStudentBelongsToClassAsync(Guid studentId, Guid classId, CancellationToken cancellationToken)
+    {
+        var exists = await enrollments.Query().AnyAsync(x =>
+            x.StudentId == studentId &&
+            x.ClassId == classId &&
+            x.Status != EnrollmentStatus.Pending &&
+            x.Status != EnrollmentStatus.Cancelled,
+            cancellationToken);
+        if (!exists) throw Conflict("Student is not enrolled in this class");
+    }
     private async Task<decimal> AttendancePercentAsync(Guid studentId, Guid classId, decimal fallback, CancellationToken cancellationToken)
     {
         var enrollment = await enrollments.Query().FirstOrDefaultAsync(x => x.StudentId == studentId && x.ClassId == classId, cancellationToken);
@@ -651,6 +720,116 @@ public sealed class ResultService(IRepository<StudentResult> results, IRepositor
     }
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
+}
+
+public interface IReviewService
+{
+    Task<IReadOnlyList<CourseReviewResponse>> GetAllAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<CourseReviewResponse>> ByStudentAsync(Guid studentId, CancellationToken cancellationToken);
+    Task<CourseReviewResponse?> ByEnrollmentAsync(Guid enrollmentId, CancellationToken cancellationToken);
+    Task<CourseReviewResponse> CreateAsync(CreateCourseReviewRequest request, Guid? currentStudentId, CancellationToken cancellationToken);
+    Task<CourseReviewResponse> UpdateAsync(Guid id, UpdateCourseReviewRequest request, Guid? currentStudentId, CancellationToken cancellationToken);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken);
+}
+
+public sealed class ReviewService(StudentDbContext dbContext, IClassCapacityClient courseClient) : IReviewService
+{
+    public async Task<IReadOnlyList<CourseReviewResponse>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        var rows = await ReviewQuery().OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+        return rows.Select(x => x.ToResponse()).ToList();
+    }
+
+    public async Task<IReadOnlyList<CourseReviewResponse>> ByStudentAsync(Guid studentId, CancellationToken cancellationToken)
+    {
+        var rows = await ReviewQuery().Where(x => x.StudentId == studentId).OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+        return rows.Select(x => x.ToResponse()).ToList();
+    }
+
+    public async Task<CourseReviewResponse?> ByEnrollmentAsync(Guid enrollmentId, CancellationToken cancellationToken) =>
+        (await ReviewQuery().FirstOrDefaultAsync(x => x.EnrollmentId == enrollmentId, cancellationToken))?.ToResponse();
+
+    public async Task<CourseReviewResponse> CreateAsync(CreateCourseReviewRequest request, Guid? currentStudentId, CancellationToken cancellationToken)
+    {
+        var enrollment = await dbContext.Enrollments.Include(x => x.Student).FirstOrDefaultAsync(x => x.Id == request.EnrollmentId, cancellationToken) ?? throw NotFound("Enrollment");
+        if (currentStudentId.HasValue && currentStudentId.Value != enrollment.StudentId) throw Forbidden();
+        if (enrollment.Status != EnrollmentStatus.Completed) throw Conflict("Chỉ được đánh giá sau khi hoàn thành khóa học");
+        if (await dbContext.CourseReviews.AnyAsync(x => x.StudentId == enrollment.StudentId && x.ClassId == enrollment.ClassId, cancellationToken)) throw Conflict("Học viên đã đánh giá lớp học này");
+        await ValidateTeachersAsync(enrollment.ClassId, request.TeacherReviews, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var review = new CourseReview
+        {
+            Id = Guid.NewGuid(),
+            EnrollmentId = enrollment.Id,
+            StudentId = enrollment.StudentId,
+            StudentNameSnapshot = enrollment.Student?.FullName ?? enrollment.StudentNameSnapshot,
+            CourseId = enrollment.CourseId,
+            CourseNameSnapshot = enrollment.CourseNameSnapshot,
+            ClassId = enrollment.ClassId,
+            ClassNameSnapshot = enrollment.ClassNameSnapshot,
+            CourseRating = NormalizeRating(request.CourseRating),
+            CourseComment = Clean(request.CourseComment),
+            CreatedAt = now,
+            UpdatedAt = now,
+            TeacherReviews = BuildTeacherReviews(request.TeacherReviews)
+        };
+
+        await dbContext.CourseReviews.AddAsync(review, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return (await ReviewQuery().FirstAsync(x => x.Id == review.Id, cancellationToken)).ToResponse();
+    }
+
+    public async Task<CourseReviewResponse> UpdateAsync(Guid id, UpdateCourseReviewRequest request, Guid? currentStudentId, CancellationToken cancellationToken)
+    {
+        var review = await ReviewQuery().FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Review");
+        if (currentStudentId.HasValue && currentStudentId.Value != review.StudentId) throw Forbidden();
+        await ValidateTeachersAsync(review.ClassId, request.TeacherReviews, cancellationToken);
+
+        review.CourseRating = NormalizeRating(request.CourseRating);
+        review.CourseComment = Clean(request.CourseComment);
+        review.UpdatedAt = DateTime.UtcNow;
+        dbContext.TeacherReviews.RemoveRange(review.TeacherReviews);
+        review.TeacherReviews = BuildTeacherReviews(request.TeacherReviews);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return (await ReviewQuery().FirstAsync(x => x.Id == review.Id, cancellationToken)).ToResponse();
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var review = await ReviewQuery().FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Review");
+        dbContext.CourseReviews.Remove(review);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private IQueryable<CourseReview> ReviewQuery() => dbContext.CourseReviews.Include(x => x.TeacherReviews);
+
+    private async Task ValidateTeachersAsync(Guid classId, IReadOnlyList<TeacherReviewItemRequest> teacherReviews, CancellationToken cancellationToken)
+    {
+        if (teacherReviews.Count == 0) throw Conflict("Cần đánh giá ít nhất một giảng viên");
+        var duplicateTeacher = teacherReviews.GroupBy(x => x.TeacherId).FirstOrDefault(g => g.Count() > 1);
+        if (duplicateTeacher is not null) throw Conflict("Danh sách giảng viên đánh giá bị trùng");
+
+        var classInfo = await courseClient.GetClassAsync(classId, cancellationToken);
+        var validTeacherIds = classInfo?.TeacherIds?.Where(x => x != Guid.Empty).ToHashSet() ?? [];
+        if (validTeacherIds.Count > 0 && teacherReviews.Any(x => !validTeacherIds.Contains(x.TeacherId))) throw Conflict("Giảng viên đánh giá không thuộc lớp học này");
+    }
+
+    private static List<TeacherReview> BuildTeacherReviews(IEnumerable<TeacherReviewItemRequest> requests) =>
+        requests.Select(x => new TeacherReview
+        {
+            Id = Guid.NewGuid(),
+            TeacherId = x.TeacherId,
+            TeacherNameSnapshot = x.TeacherNameSnapshot.Trim(),
+            Rating = NormalizeRating(x.Rating),
+            Comment = Clean(x.Comment)
+        }).ToList();
+
+    private static decimal NormalizeRating(decimal value) => Math.Round(Math.Clamp(value, 1m, 5m), 1);
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
+    private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
+    private static AppException Forbidden() => new("Forbidden", StatusCodes.Status403Forbidden);
 }
 
 public interface IStudentPortalService
@@ -695,10 +874,11 @@ public sealed class StudentPortalService(IStudentService students, IEnrollmentSe
                 _ => null
             };
 
-            return new MyCourseResponse(course.Id, course.StudentId, course.StudentNameSnapshot, course.CourseId, course.CourseNameSnapshot, course.ClassId, course.ClassNameSnapshot, course.EnrolledAt, course.Status, course.Note, course.CreatedAt, course.UpdatedAt, classInfo?.StartDate, classInfo?.EndDate, totalSessions, completedSessions, progressPercent, canShowProgress);
+            return new MyCourseResponse(course.Id, course.StudentId, course.StudentNameSnapshot, course.CourseId, course.CourseNameSnapshot, course.ClassId, course.ClassNameSnapshot, course.EnrolledAt, course.Status, course.Note, course.CreatedAt, course.UpdatedAt, classInfo?.StartDate, classInfo?.EndDate, totalSessions, completedSessions, progressPercent, canShowProgress, classInfo?.TeacherIds ?? [], classInfo?.TeacherNames ?? []);
         }).ToList();
     }
 
     private static MyCourseResponse ToMyCourseWithoutProgress(EnrollmentResponse course) =>
-        new(course.Id, course.StudentId, course.StudentNameSnapshot, course.CourseId, course.CourseNameSnapshot, course.ClassId, course.ClassNameSnapshot, course.EnrolledAt, course.Status, course.Note, course.CreatedAt, course.UpdatedAt, null, null, 0, 0, null, false);
+        new(course.Id, course.StudentId, course.StudentNameSnapshot, course.CourseId, course.CourseNameSnapshot, course.ClassId, course.ClassNameSnapshot, course.EnrolledAt, course.Status, course.Note, course.CreatedAt, course.UpdatedAt, null, null, 0, 0, null, false, [], []);
 }
+

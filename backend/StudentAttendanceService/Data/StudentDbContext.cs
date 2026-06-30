@@ -11,6 +11,11 @@ public sealed class StudentDbContext(DbContextOptions<StudentDbContext> options)
     public DbSet<AttendanceSession> AttendanceSessions => Set<AttendanceSession>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<StudentResult> StudentResults => Set<StudentResult>();
+    public DbSet<CourseReview> CourseReviews => Set<CourseReview>();
+    public DbSet<TeacherReview> TeacherReviews => Set<TeacherReview>();
+    public DbSet<AiKnowledgeDocument> AiKnowledgeDocuments => Set<AiKnowledgeDocument>();
+    public DbSet<AiKnowledgeChunk> AiKnowledgeChunks => Set<AiKnowledgeChunk>();
+    public DbSet<AiEmailDraft> AiEmailDrafts => Set<AiEmailDraft>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +30,18 @@ public sealed class StudentDbContext(DbContextOptions<StudentDbContext> options)
         modelBuilder.Entity<StudentResult>().Property(x => x.FinalScore).HasPrecision(5, 2);
         modelBuilder.Entity<StudentResult>().Property(x => x.AverageScore).HasPrecision(5, 2);
         modelBuilder.Entity<StudentResult>().Property(x => x.AttendancePercent).HasPrecision(5, 2);
+        modelBuilder.Entity<CourseReview>().HasIndex(x => new { x.StudentId, x.ClassId }).IsUnique();
+        modelBuilder.Entity<CourseReview>().HasIndex(x => x.EnrollmentId).IsUnique();
+        modelBuilder.Entity<CourseReview>().HasIndex(x => x.CourseId);
+        modelBuilder.Entity<CourseReview>().Property(x => x.CourseRating).HasPrecision(3, 1);
+        modelBuilder.Entity<CourseReview>().HasOne(x => x.Enrollment).WithMany().HasForeignKey(x => x.EnrollmentId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<TeacherReview>().HasIndex(x => x.TeacherId);
+        modelBuilder.Entity<TeacherReview>().Property(x => x.Rating).HasPrecision(3, 1);
+        modelBuilder.Entity<TeacherReview>().HasOne(x => x.CourseReview).WithMany(x => x.TeacherReviews).HasForeignKey(x => x.CourseReviewId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<AiKnowledgeDocument>().HasIndex(x => new { x.Scope, x.AudienceRole, x.OwnerReferenceId, x.ClassId });
+        modelBuilder.Entity<AiKnowledgeChunk>().HasIndex(x => new { x.DocumentId, x.ChunkIndex }).IsUnique();
+        modelBuilder.Entity<AiKnowledgeChunk>().HasOne(x => x.Document).WithMany(x => x.Chunks).HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<AiEmailDraft>().HasIndex(x => new { x.Status, x.CreatedAt });
 
         var now = new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
         var studentIds = Enumerable.Range(1, 20).Select(i => Guid.Parse($"aaaaaaaa-aaaa-aaaa-aaaa-{i:000000000000}")).ToArray();

@@ -22,6 +22,14 @@
       "UpstreamHttpMethod": [ "GET" ]
     },
     {
+      "DownstreamPathTemplate": "/api/rooms/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "UpstreamPathTemplate": "/gateway/rooms/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
+    },
+    {
       "DownstreamPathTemplate": "/api/classes/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
@@ -45,6 +53,14 @@
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
     },
     {
+      "DownstreamPathTemplate": "/api/teaching-substitutions/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5001 }],
+      "UpstreamPathTemplate": "/gateway/teaching-substitutions/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
+    },
+    {
       "DownstreamPathTemplate": "/api/students/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
@@ -61,6 +77,14 @@
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
     },
     {
+      "DownstreamPathTemplate": "/api/ai/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
+      "UpstreamPathTemplate": "/gateway/ai/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
+    },
+    {
       "DownstreamPathTemplate": "/api/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
@@ -73,6 +97,14 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
       "UpstreamPathTemplate": "/gateway/results/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
+    },
+    {
+      "DownstreamPathTemplate": "/api/reviews/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5002 }],
+      "UpstreamPathTemplate": "/gateway/reviews/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
     },
@@ -106,6 +138,14 @@
       "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5003 }],
       "UpstreamPathTemplate": "/gateway/reports/{everything}",
       "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
+    },
+    {
+      "DownstreamPathTemplate": "/api/settings/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "127.0.0.1", "Port": 5003 }],
+      "UpstreamPathTemplate": "/gateway/settings/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT" ],
       "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer" }
     }
   ],

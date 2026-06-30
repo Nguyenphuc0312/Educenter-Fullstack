@@ -238,6 +238,9 @@
         </div>
 
         <div class="p-6 bg-white border-t border-slate-200 flex flex-col gap-3">
+          <button @click="openSubstituteModal" class="w-full py-3 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 font-bold rounded-xl text-sm transition-colors flex justify-center items-center gap-2 active:scale-95">
+            Yêu cầu dạy thay
+          </button>
           <button @click="goToAttendance(selectedSchedule.classId)" class="w-full py-3 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 font-bold rounded-xl text-sm transition-colors flex justify-center items-center gap-2 active:scale-95">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
             Tạo phiên Điểm danh
@@ -250,6 +253,41 @@
         </div>
       </div>
     </a-drawer>
+
+    <a-modal
+      v-model:open="substituteModalOpen"
+      title="Yêu cầu dạy thay"
+      ok-text="Gửi yêu cầu"
+      cancel-text="Hủy"
+      :confirm-loading="substituteSaving"
+      @ok="submitSubstituteRequest"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="Buổi học">
+          <a-input :value="selectedSchedule?.classNameSnapshot" disabled />
+        </a-form-item>
+        <a-form-item label="Giảng viên dạy thay" required>
+          <a-select
+            v-model:value="substituteTeacherId"
+            show-search
+            option-filter-prop="label"
+            placeholder="Chọn giảng viên bất kỳ"
+          >
+            <a-select-option
+              v-for="teacher in availableSubstituteTeachers"
+              :key="teacher.id"
+              :value="teacher.id"
+              :label="teacher.fullName"
+            >
+              {{ teacher.fullName }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="Lý do">
+          <a-textarea v-model:value="substituteReason" :rows="3" placeholder="Nhập lý do dạy thay" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -266,6 +304,8 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 import { classApi } from '@/api/classApi'
 import { scheduleApi } from '@/api/scheduleApi'
+import { teacherApi } from '@/api/teacherApi'
+import { teachingSubstitutionApi } from '@/api/teachingSubstitutionApi'
 import { useAuthStore } from '@/stores/auth'
 
 // Setup DayJS Plugins
@@ -279,6 +319,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const classes = ref([])
 const schedules = ref([])
+const teachers = ref([])
 
 // Bộ lọc
 const selectedClassId = ref(undefined)
@@ -289,6 +330,10 @@ const showExpiredClasses = ref(false) // Toggle: Cho phép hiện lịch của n
 // Quản lý Drawer
 const selectedSchedule = ref(null)
 const selectedScheduleDateStr = ref('')
+const substituteModalOpen = ref(false)
+const substituteSaving = ref(false)
+const substituteTeacherId = ref(undefined)
+const substituteReason = ref('')
 const drawerOpen = computed({
   get: () => !!selectedSchedule.value,
   set: (value) => { if (!value) selectedSchedule.value = null }
@@ -299,6 +344,10 @@ const selectedScheduleClass = computed(() => {
   if (!selectedSchedule.value) return null
   return classes.value.find(c => c.id === selectedSchedule.value.classId)
 })
+
+const availableSubstituteTeachers = computed(() =>
+  teachers.value.filter(teacher => teacher.id !== auth.user?.referenceId)
+)
 
 // ================= LOGIC THỜI GIAN (TIME MACHINE) =================
 const currentDate = ref(dayjs())
@@ -458,6 +507,35 @@ function resetFilters() {
   selectedRoom.value = undefined
 }
 
+function openSubstituteModal() {
+  substituteTeacherId.value = undefined
+  substituteReason.value = ''
+  substituteModalOpen.value = true
+}
+
+async function submitSubstituteRequest() {
+  if (!selectedSchedule.value?.id || !auth.user?.referenceId) return
+  if (!substituteTeacherId.value) {
+    message.warning('Vui lòng chọn giảng viên dạy thay')
+    return
+  }
+  substituteSaving.value = true
+  try {
+    await teachingSubstitutionApi.create({
+      scheduleId: selectedSchedule.value.id,
+      requestingTeacherId: auth.user.referenceId,
+      substituteTeacherId: substituteTeacherId.value,
+      reason: substituteReason.value
+    })
+    substituteModalOpen.value = false
+    message.success('Đã gửi yêu cầu dạy thay, chờ admin duyệt')
+  } catch (error) {
+    message.error(error.message || 'Không thể gửi yêu cầu dạy thay')
+  } finally {
+    substituteSaving.value = false
+  }
+}
+
 // ================= TÍNH NĂNG EXPORT =================
 function exportSchedule() {
   message.loading({ content: 'Đang chuẩn bị file In/PDF...', key: 'print' })
@@ -472,12 +550,14 @@ async function loadData() {
   if (!auth.user?.referenceId) return
   loading.value = true
   try {
-    const [classData, scheduleData] = await Promise.all([
+    const [classData, scheduleData, teacherData] = await Promise.all([
       classApi.getByTeacher(auth.user.referenceId),
-      scheduleApi.getByTeacher(auth.user.referenceId)
+      scheduleApi.getByTeacher(auth.user.referenceId),
+      teacherApi.getAll()
     ])
     classes.value = classData || []
     schedules.value = scheduleData || []
+    teachers.value = teacherData || []
   } catch(e) {
     message.error('Lỗi khi tải dữ liệu lịch học.')
   } finally {

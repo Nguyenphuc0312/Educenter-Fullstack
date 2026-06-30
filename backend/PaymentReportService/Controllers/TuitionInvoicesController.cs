@@ -53,6 +53,9 @@ public sealed class TuitionInvoicesController(IInvoiceService service) : Control
         return Ok(ApiResponse<BulkOperationResult<TuitionInvoiceResponse>>.Ok(new() { Items = items, Requested = requests.Count, Succeeded = items.Count }, "Bulk updated"));
     }
     [HttpPut("{id:guid}/mark-overdue"), Authorize(Roles = "Admin")] public async Task<IActionResult> MarkOverdue(Guid id, CancellationToken ct) => Ok(ApiResponse<TuitionInvoiceResponse>.Ok(await service.MarkOverdueAsync(id, ct)));
+    [HttpPost("{id:guid}/send-reminder"), Authorize(Roles = "Admin")] public async Task<IActionResult> SendReminder(Guid id, CancellationToken ct) => Ok(ApiResponse<TuitionInvoiceResponse>.Ok(await service.SendReminderAsync(id, ct), "Đã gửi cảnh báo học phí"));
+    [HttpPost("bulk-send-reminder"), Authorize(Roles = "Admin")] public async Task<IActionResult> BulkSendReminder(BulkDeleteRequest request, CancellationToken ct) => Ok(ApiResponse<BulkOperationResult<TuitionInvoiceResponse>>.Ok(await service.BulkSendReminderAsync(request, ct), "Đã gửi cảnh báo học phí hàng loạt"));
+    [HttpPost("send-upcoming-reminders"), Authorize(Roles = "Admin")] public async Task<IActionResult> SendUpcomingReminders([FromQuery] int daysAhead = 3, CancellationToken ct = default) => Ok(ApiResponse<BulkOperationResult<TuitionInvoiceResponse>>.Ok(await service.SendUpcomingRemindersAsync(daysAhead, ct), "Đã gửi cảnh báo học phí sắp đến hạn"));
     [HttpPut("scan-overdue"), Authorize(Roles = "Admin")]
     public async Task<IActionResult> ScanOverdue(CancellationToken ct) => Ok(ApiResponse<OverdueScanResponse>.Ok(await service.ScanOverdueAsync(ct), "Overdue scan completed"));
     [HttpGet("learning-holds"), Authorize(Roles = "Admin,Teacher")]

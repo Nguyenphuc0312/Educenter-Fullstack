@@ -9,6 +9,7 @@
     :status-options="statusOptions"
     :form-groups="formGroups"
     :filter-fn="customFilter"
+    :normalize-out="normalizeClassPayload"
     @reset="resetCustomFilters"
   >
     <!-- Custom filters slot -->
@@ -34,6 +35,18 @@
       >
         <a-select-option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
           {{ teacher.fullName }}
+        </a-select-option>
+      </a-select>
+
+      <a-select
+        v-model:value="filterRoomId"
+        placeholder="Phòng học"
+        allow-clear
+        size="small"
+        class="w-36"
+      >
+        <a-select-option v-for="room in rooms" :key="room.id" :value="room.id">
+          {{ room.name }}
         </a-select-option>
       </a-select>
 
@@ -121,13 +134,16 @@
         <div class="flex items-center gap-2.5 min-w-0">
           <div
             class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ring-2 ring-white dark:ring-slate-900"
-            :style="{ background: teacherAvatarBg(record.teacherNameSnapshot), color: '#fff' }"
+            :style="{ background: teacherAvatarBg(teacherNames(record)), color: '#fff' }"
           >
-            {{ getInitials(record.teacherNameSnapshot || 'NA') }}
+            {{ getInitials(teacherNames(record) || 'NA') }}
           </div>
           <div class="flex flex-col min-w-0">
             <span class="text-[13px] font-semibold admin-class-cell-ellipsis" style="color: var(--admin-text);">
-              {{ record.teacherNameSnapshot || 'Chưa phân công' }}
+              {{ teacherNames(record) || 'Chưa phân công' }}
+            </span>
+            <span v-if="record.teacherNames?.length > 1" class="text-[10px] font-semibold" style="color: var(--admin-accent);">
+              {{ record.teacherNames.length }} giảng viên phụ trách
             </span>
             <span
               v-if="record.room"
@@ -230,6 +246,7 @@ import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import { classApi } from '@/api/classApi'
 import { courseApi } from '@/api/courseApi'
 import { teacherApi } from '@/api/teacherApi'
+import { roomApi } from '@/api/roomApi'
 import { CLASS_STATUS, LEARNING_MODE, toOptions } from '@/lib/constants'
 import { getInitials } from '@/lib/formatters'
 
@@ -253,9 +270,11 @@ const learningModeOptions = toOptions(LEARNING_MODE)
 
 const courses = ref([])
 const teachers = ref([])
+const rooms = ref([])
 
 const filterCourseId = ref(undefined)
 const filterTeacherId = ref(undefined)
+const filterRoomId = ref(undefined)
 const filterLearningMode = ref(undefined)
 const filterStatus = ref(undefined)
 
@@ -289,8 +308,8 @@ const fields = [
   { name: 'courseId', label: 'Khóa học', type: 'select', options: [], required: true, default: '' },
   { name: 'classCode', label: 'Mã lớp', required: true, editOnly: true, default: '' },
   { name: 'className', label: 'Tên lớp', required: true, default: '' },
-  { name: 'teacherId', label: 'Giảng viên', type: 'select', options: [], required: true, default: '' },
-  { name: 'room', label: 'Phòng học', required: true, default: '' },
+  { name: 'teacherIds', label: 'Giảng viên', type: 'select', mode: 'multiple', maxTagCount: 2, options: [], required: true, default: [] },
+  { name: 'roomId', label: 'Phòng học', type: 'select', options: [], required: true, default: '' },
   { name: 'maxStudents', label: 'Sĩ số tối đa', type: 'number', required: true, default: 30 },
   { name: 'currentStudents', label: 'Sĩ số hiện tại', type: 'number', default: 0 },
   { name: 'startDate', label: 'Ngày bắt đầu', type: 'date', default: '' },
@@ -306,7 +325,7 @@ const formGroups = [
   },
   {
     title: 'Giáo viên & Địa điểm học',
-    fields: ['teacherId', 'room', 'learningMode']
+    fields: ['teacherIds', 'roomId', 'learningMode']
   },
   {
     title: 'Quy mô học viên',
@@ -320,17 +339,35 @@ const formGroups = [
 
 function customFilter(item) {
   const matchCourse = !filterCourseId.value || item.courseId === filterCourseId.value
-  const matchTeacher = !filterTeacherId.value || item.teacherId === filterTeacherId.value
+  const matchTeacher = !filterTeacherId.value || item.teacherId === filterTeacherId.value || item.teacherIds?.includes(filterTeacherId.value)
+  const matchRoom = !filterRoomId.value || item.roomId === filterRoomId.value
   const matchMode = filterLearningMode.value === undefined || Number(item.learningMode) === Number(filterLearningMode.value)
   const matchStatus = filterStatus.value === undefined || classStatusValue(item.status) === Number(filterStatus.value)
-  return matchCourse && matchTeacher && matchMode && matchStatus
+  return matchCourse && matchTeacher && matchRoom && matchMode && matchStatus
 }
 
 function resetCustomFilters() {
   filterCourseId.value = undefined
   filterTeacherId.value = undefined
+  filterRoomId.value = undefined
   filterLearningMode.value = undefined
   filterStatus.value = undefined
+}
+
+function teacherNames(record) {
+  if (Array.isArray(record?.teacherNames) && record.teacherNames.length) {
+    return record.teacherNames.join(', ')
+  }
+  return record?.teacherNameSnapshot || ''
+}
+
+function normalizeClassPayload(payload) {
+  const teacherIds = Array.isArray(payload.teacherIds) ? payload.teacherIds.filter(Boolean) : []
+  return {
+    ...payload,
+    teacherIds,
+    teacherId: teacherIds[0] || payload.teacherId
+  }
 }
 
 // ============ Helpers cho cell rendering ============
@@ -429,19 +466,25 @@ function scheduleHint(start, end) {
 
 async function loadFilterDependencies() {
   try {
-    const [coursesRes, teachersRes] = await Promise.all([
+    const [coursesRes, teachersRes, roomsRes] = await Promise.all([
       courseApi.getAll(),
-      teacherApi.getAll()
+      teacherApi.getAll(),
+      roomApi.getAll()
     ])
     courses.value = coursesRes?.items || coursesRes?.data || coursesRes || []
     teachers.value = teachersRes?.items || teachersRes?.data || teachersRes || []
+    rooms.value = (roomsRes?.items || roomsRes?.data || roomsRes || []).filter(room => room.isActive !== false)
     fields.find(field => field.name === 'courseId').options = courses.value.map(course => ({
       value: course.id,
       label: `${course.code || '---'} - ${course.name}`,
     }))
-    fields.find(field => field.name === 'teacherId').options = teachers.value.map(teacher => ({
+    fields.find(field => field.name === 'teacherIds').options = teachers.value.map(teacher => ({
       value: teacher.id,
       label: teacher.fullName,
+    }))
+    fields.find(field => field.name === 'roomId').options = rooms.value.map(room => ({
+      value: room.id,
+      label: `${room.name} (${room.capacity || 0} chỗ)`,
     }))
   } catch (error) {
     // Fail silently

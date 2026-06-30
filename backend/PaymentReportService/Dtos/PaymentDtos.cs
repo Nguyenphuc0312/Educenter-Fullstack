@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 namespace PaymentReportService.Dtos;
 
 public sealed record AccountResponse(Guid Id, string Username, string FullName, string Email, string Phone, UserRole Role, Guid? ReferenceId, AccountStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
-public sealed record TuitionInvoiceResponse(Guid Id, Guid? EnrollmentId, string InvoiceCode, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal TotalAmount, decimal PaidAmount, decimal DebtAmount, DateTime DueDate, DateTime? PartialPaymentDueDate, InvoiceStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record TuitionInvoiceResponse(Guid Id, Guid? EnrollmentId, string InvoiceCode, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal TotalAmount, decimal PaidAmount, decimal DebtAmount, DateTime DueDate, DateTime? PartialPaymentDueDate, DateTime? LastReminderSentAt, int ReminderCount, InvoiceStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record PaymentTransactionResponse(Guid Id, Guid InvoiceId, string? InvoiceCode, Guid? StudentId, string? StudentNameSnapshot, decimal Amount, PaymentMethod Method, DateTime PaymentDate, PaymentStatus Status, string? Note, string CreatedBy, DateTime CreatedAt);
 public sealed record LoginUserResponse(Guid Id, string Username, string FullName, string Email, string Phone, UserRole Role, Guid? ReferenceId);
 public sealed record LoginResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, LoginUserResponse User);
@@ -13,6 +13,7 @@ public sealed record GroupAmountResponse(Guid Id, string Name, decimal TotalReve
 public sealed record DashboardResponse(RevenueOverviewResponse Overview, IReadOnlyList<GroupAmountResponse> RevenueByCourse, IReadOnlyList<GroupAmountResponse> DebtByClass);
 public sealed record OverdueScanResponse(int ScannedInvoices, int UpdatedInvoices, IReadOnlyList<TuitionInvoiceResponse> Items);
 public sealed record LearningHoldResponse(Guid InvoiceId, Guid? EnrollmentId, string InvoiceCode, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal DebtAmount, DateTime DueDate, DateTime? PartialPaymentDueDate, InvoiceStatus Status, string Reason);
+public sealed record NotificationEmailSettingsResponse(string FromEmail, string FromName, string SmtpHost, int SmtpPort, bool EnableSsl, bool HasAppPassword, string MaskedAppPassword, DateTime UpdatedAt);
 
 public sealed class LoginRequest { [Required] public string Username { get; set; } = string.Empty; [Required] public string Password { get; set; } = string.Empty; }
 public class CreateAccountRequest
@@ -92,4 +93,26 @@ public sealed class StudentPaymentRequest
     [Range(50, 100)] public int Percent { get; set; } = 100;
     public PaymentMethod Method { get; set; } = PaymentMethod.BankTransfer;
     public string? Note { get; set; }
+}
+
+public sealed class UpdateNotificationEmailSettingsRequest
+{
+    [Required, EmailAddress] public string FromEmail { get; set; } = string.Empty;
+    [Required] public string FromName { get; set; } = "EduCenter";
+    [Required] public string SmtpHost { get; set; } = "smtp.gmail.com";
+    [Range(1, 65535)] public int SmtpPort { get; set; } = 587;
+    public bool EnableSsl { get; set; } = true;
+    public string? AppPassword { get; set; }
+}
+
+public sealed class SendTestEmailRequest
+{
+    [Required, EmailAddress] public string ToEmail { get; set; } = string.Empty;
+}
+
+public sealed class SendNotificationRequest
+{
+    [Required, EmailAddress] public string ToEmail { get; set; } = string.Empty;
+    [Required] public string Subject { get; set; } = string.Empty;
+    [Required] public string Body { get; set; } = string.Empty;
 }

@@ -11,6 +11,16 @@ import './index.css'
 const app = createApp(App)
 const pinia = createPinia()
 
+app.config.errorHandler = (err, instance, info) => {
+  console.error('[Vue Global Error]', err, info)
+}
+
+app.config.warnHandler = (msg, instance, trace) => {
+  if (import.meta.env.DEV) {
+    console.warn('[Vue Global Warn]', msg, trace)
+  }
+}
+
 app.use(pinia)
 app.use(router)
 app.use(Antd)

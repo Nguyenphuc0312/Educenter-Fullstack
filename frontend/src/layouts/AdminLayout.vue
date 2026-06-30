@@ -4,18 +4,22 @@
     <main class="flex-grow p-4 md:p-8 md:pl-72 pt-20 md:pt-8 min-w-0 admin-content">
       <router-view />
     </main>
+    <AIChatbot role="admin" />
   </div>
 </template>
 
 <script setup>
 import SidebarNav from '../components/layout/SidebarNav.vue';
+import AIChatbot from '../components/AIChatbot.vue';
 
 // Menu items kept for compatibility (SidebarNav renders its own grouped list for Admin).
 const menuItems = [
-  { to: 'dashboard', label: 'Tổng quan', icon: 'LayoutDashboard' },
+  { to: 'settings', label: 'Cấu hình', icon: 'Settings' },
+  { to: 'rooms', label: 'Phòng học', icon: 'Calendar' },
   { to: 'courses', label: 'Khóa học', icon: 'BookOpen' },
   { to: 'classes', label: 'Lớp học', icon: 'Users' },
   { to: 'schedules', label: 'Lịch học', icon: 'Calendar' },
+  { to: 'teaching-substitutions', label: 'Dạy thay', icon: 'UserCheck' },
   { to: 'teachers', label: 'Giảng viên', icon: 'Award' },
   { to: 'students', label: 'Học viên', icon: 'GraduationCap' },
   { to: 'enrollments', label: 'Ghi danh', icon: 'FileText' },

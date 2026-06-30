@@ -1,7 +1,9 @@
 <template>
-  <div class="flex items-center justify-center min-h-[80vh] px-4 py-12">
+  <div class="relative flex items-center justify-center min-h-[80vh] px-4 py-12 overflow-hidden">
+    <div class="absolute top-1/4 left-1/4 w-80 h-80 rounded-full bg-blue-500/10 dark:bg-blue-500/5 blur-3xl pointer-events-none animate-float-slow"></div>
+    <div class="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-purple-500/10 dark:bg-purple-500/5 blur-3xl pointer-events-none animate-float-slower"></div>
     <div
-      class="w-full max-w-md bg-card-base border border-base rounded-3xl p-8 shadow-xl animate-fade-in"
+      class="w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-8 shadow-2xl animate-fade-in relative z-10"
     >
       <div class="flex flex-col items-center mb-8">
         <div class="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white mb-4 shadow-lg shadow-blue-500/10">
@@ -114,8 +116,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '../../stores/auth'
-import { getRoleHomePath } from '../../lib/constants'
+import { useAuthStore } from "@/stores/auth"
+import { getRoleHomePath } from "@/lib/constants"
 import { message } from 'ant-design-vue'
 
 const router = useRouter()

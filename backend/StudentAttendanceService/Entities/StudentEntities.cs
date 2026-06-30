@@ -87,3 +87,68 @@ public sealed class StudentResult
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+
+public sealed class CourseReview
+{
+    public Guid Id { get; set; }
+    public Guid EnrollmentId { get; set; }
+    public Guid StudentId { get; set; }
+    [MaxLength(200)] public string StudentNameSnapshot { get; set; } = string.Empty;
+    public Guid CourseId { get; set; }
+    [MaxLength(200)] public string CourseNameSnapshot { get; set; } = string.Empty;
+    public Guid ClassId { get; set; }
+    [MaxLength(200)] public string ClassNameSnapshot { get; set; } = string.Empty;
+    public decimal CourseRating { get; set; }
+    [MaxLength(1000)] public string? CourseComment { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public Enrollment? Enrollment { get; set; }
+    public List<TeacherReview> TeacherReviews { get; set; } = [];
+}
+
+public sealed class TeacherReview
+{
+    public Guid Id { get; set; }
+    public Guid CourseReviewId { get; set; }
+    public Guid TeacherId { get; set; }
+    [MaxLength(200)] public string TeacherNameSnapshot { get; set; } = string.Empty;
+    public decimal Rating { get; set; }
+    [MaxLength(1000)] public string? Comment { get; set; }
+    public CourseReview? CourseReview { get; set; }
+}
+
+public sealed class AiKnowledgeDocument
+{
+    public Guid Id { get; set; }
+    [MaxLength(250)] public string Title { get; set; } = string.Empty;
+    [MaxLength(40)] public string SourceType { get; set; } = "Text";
+    [MaxLength(40)] public string Scope { get; set; } = "Role";
+    [MaxLength(30)] public string? AudienceRole { get; set; }
+    public Guid? OwnerReferenceId { get; set; }
+    public Guid? ClassId { get; set; }
+    public Guid UploadedByAccountId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public List<AiKnowledgeChunk> Chunks { get; set; } = [];
+}
+
+public sealed class AiKnowledgeChunk
+{
+    public Guid Id { get; set; }
+    public Guid DocumentId { get; set; }
+    public int ChunkIndex { get; set; }
+    [MaxLength(6000)] public string Content { get; set; } = string.Empty;
+    public AiKnowledgeDocument? Document { get; set; }
+}
+
+public sealed class AiEmailDraft
+{
+    public Guid Id { get; set; }
+    [MaxLength(500)] public string Recipients { get; set; } = string.Empty;
+    [MaxLength(300)] public string Subject { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    [MaxLength(30)] public string Status { get; set; } = "Draft";
+    public Guid CreatedByAccountId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? SentAt { get; set; }
+}

@@ -163,6 +163,14 @@
               <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               Khóa buổi
             </button>
+            <button
+              class="px-4 py-2 bg-white text-slate-600 border border-slate-300 font-bold rounded-lg text-xs hover:bg-slate-50 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!selectedSession || sessionLocked(selectedSession)"
+              @click="confirmDeleteSession"
+            >
+              Xóa phiên
+            </button>
+
           </div>
         </div>
 
@@ -172,7 +180,22 @@
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Vắng: <span class="font-bold text-rose-700">{{ stats.absent }}</span></div>
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Muộn: <span class="font-bold text-amber-700">{{ stats.late }}</span></div>
           <div class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Phép: <span class="font-bold text-blue-700">{{ stats.excused }}</span></div>
-          <div v-if="stats.locked" class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-700"></span> Kh?a h?c ph?: <span class="font-bold text-rose-700">{{ stats.locked }}</span></div>
+          <div v-if="stats.locked" class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-rose-700"></span> Khóa học phí: <span class="font-bold text-rose-700">{{ stats.locked }}</span></div>
+        </div>
+
+        <div v-if="selectedSession && records.length && !sessionLocked(selectedSession)" class="attendance-shortcut-bar">
+          <div class="attendance-shortcut-help">
+            <strong>{{ selectedRecordIds.length }}</strong>
+            <span>học viên đang chọn</span>
+            <em>Click dòng học viên để chọn nhiều dòng, rồi nhấn C/V/M/P trên bàn phím.</em>
+          </div>
+          <div class="attendance-shortcut-actions">
+            <button type="button" @click="applyStatusToSelection('Present')">C Có mặt</button>
+            <button type="button" @click="applyStatusToSelection('Absent')">V Vắng</button>
+            <button type="button" @click="applyStatusToSelection('Late')">M Đi muộn</button>
+            <button type="button" @click="applyStatusToSelection('Excused')">P Có phép</button>
+            <button type="button" class="is-muted" :disabled="!selectedRecordIds.length" @click="clearSelectedRecords">Bỏ chọn</button>
+          </div>
         </div>
 
         <div class="flex-1 overflow-auto custom-scrollbar relative">
@@ -186,6 +209,9 @@
             row-key="studentId"
             size="middle"
             class="enterprise-table"
+            :row-selection="rowSelection"
+            :custom-row="attendanceRowProps"
+            :row-class-name="attendanceRowClassName"
             :pagination="false"
             :scroll="{ y: 460 }"
           >
@@ -216,9 +242,9 @@
                   :bordered="false"
                 >
                   <a-select-option value="Present"><span class="font-bold text-emerald-700">✓ Có mặt</span></a-select-option>
-                  <a-select-option value="Absent"><span class="font-bold text-rose-700">✗ Vắng mặt</span></a-select-option>
+                  <a-select-option value="Absent"><span class="font-bold text-rose-700">✕ Vắng mặt</span></a-select-option>
                   <a-select-option value="Late"><span class="font-bold text-amber-700">⏰ Đi muộn</span></a-select-option>
-                  <a-select-option value="Excused"><span class="font-bold text-blue-700">📋 Có phép</span></a-select-option>
+                  <a-select-option value="Excused"><span class="font-bold text-blue-700">Có phép</span></a-select-option>
                 </a-select>
               </template>
 
@@ -269,9 +295,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import dayjs from 'dayjs'
-import { message } from 'ant-design-vue'
+import { Modal, message } from 'ant-design-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 import { classApi } from '@/api/classApi'
@@ -297,6 +323,7 @@ const enrollments = ref([])
 const sessions = ref([])
 const records = ref([])
 const learningHolds = ref([])
+const selectedRecordIds = ref([])
 
 const selectedClassId = ref(props.classId || undefined)
 const selectedScheduleId = ref(undefined)
@@ -326,6 +353,17 @@ const stats = computed(() => {
     locked: records.value.filter(r => isAttendanceLocked(r)).length,
   }
 })
+
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedRecordIds.value,
+  hideSelectAll: false,
+  getCheckboxProps: (record) => ({
+    disabled: sessionLocked(selectedSession.value) || isAttendanceLocked(record),
+  }),
+  onChange: (keys) => {
+    selectedRecordIds.value = keys
+  },
+}))
 
 // Avatar Helpers
 function getInitials(name) {
@@ -402,6 +440,7 @@ async function loadBaseData() {
 async function onClassChange() {
   records.value = []
   learningHolds.value = []
+  selectedRecordIds.value = []
   selectedSessionId.value = undefined
   if (!selectedClassId.value) return
   const [sch, en, ses] = await Promise.all([
@@ -417,7 +456,18 @@ async function onClassChange() {
   selectedScheduleId.value = schedules.value[0]?.id
 }
 
-async function createSession() {
+function createSession() {
+  if (!canCreateSession.value) return
+  Modal.confirm({
+    title: 'Tạo phiên điểm danh mới?',
+    content: 'Hệ thống sẽ tạo bản ghi điểm danh cho toàn bộ học viên đang học trong lớp. Bạn có chắc muốn tạo phiên này?',
+    okText: 'Tạo phiên',
+    cancelText: 'Hủy',
+    onOk: executeCreateSession,
+  })
+}
+
+async function executeCreateSession() {
   creatingSession.value = true
   try {
     const payload = {
@@ -443,6 +493,7 @@ async function createSession() {
 
 async function selectSession(session) {
   selectedSessionId.value = session.id
+  selectedRecordIds.value = []
   loadingRecords.value = true
   try {
     await loadLearningHolds(session.classId || selectedClassId.value)
@@ -500,6 +551,80 @@ function confirmLockSession() {
   isConfirmLockOpen.value = true
 }
 
+function confirmDeleteSession() {
+  if (!selectedSession.value || sessionLocked(selectedSession.value)) return
+  Modal.confirm({
+    title: 'Xóa phiên điểm danh?',
+    content: `Phiên buổi ${selectedSession.value.sessionNumber} sẽ bị xóa cùng toàn bộ bản ghi điểm danh liên quan. Chỉ nên xóa khi tạo nhầm hoặc dữ liệu test.`,
+    okText: 'Xóa phiên',
+    okType: 'danger',
+    cancelText: 'Hủy',
+    async onOk() {
+      try {
+        await attendanceApi.deleteSession(selectedSession.value.id)
+        sessions.value = sessions.value.filter(x => x.id !== selectedSession.value.id)
+        selectedSessionId.value = undefined
+        selectedRecordIds.value = []
+        records.value = []
+        message.success('Đã xóa phiên điểm danh')
+      } catch (error) {
+        message.error(error.message || 'Không thể xóa phiên điểm danh')
+      }
+    },
+  })
+}
+
+function attendanceRowProps(record) {
+  return {
+    onClick: (event) => {
+      if (isInteractiveTarget(event.target)) return
+      selectSingleRecord(record)
+    },
+  }
+}
+
+function attendanceRowClassName(record) {
+  if (sessionLocked(selectedSession.value) || isAttendanceLocked(record)) return ''
+  return selectedRecordIds.value.includes(record.studentId) ? 'attendance-row-selected' : 'attendance-row-clickable'
+}
+
+function selectSingleRecord(record) {
+  if (sessionLocked(selectedSession.value) || isAttendanceLocked(record)) return
+  selectedRecordIds.value = [record.studentId]
+}
+
+function clearSelectedRecords() {
+  selectedRecordIds.value = []
+}
+
+function applyStatusToSelection(status) {
+  if (sessionLocked(selectedSession.value)) return
+  if (!selectedRecordIds.value.length) {
+    message.info('Hãy chọn một hoặc nhiều học viên trước')
+    return
+  }
+  const selected = new Set(selectedRecordIds.value)
+  records.value.forEach((record) => {
+    if (selected.has(record.studentId) && !isAttendanceLocked(record)) {
+      record.status = status
+    }
+  })
+}
+
+function handleAttendanceShortcut(event) {
+  if (!selectedSession.value || sessionLocked(selectedSession.value) || !records.value.length) return
+  if (isInteractiveTarget(event.target)) return
+  const status = { c: 'Present', v: 'Absent', m: 'Late', p: 'Excused' }[event.key?.toLowerCase()]
+  if (!status) return
+  event.preventDefault()
+  applyStatusToSelection(status)
+}
+
+function isInteractiveTarget(target) {
+  const tagName = target?.tagName?.toLowerCase()
+  return ['input', 'textarea', 'select', 'button'].includes(tagName) || target?.closest?.('.ant-select, .ant-input, .ant-checkbox-wrapper, .ant-pagination')
+}
+
 async function executeLockSession() {
   if (!selectedSession.value) return
   locking.value = true
@@ -516,7 +641,13 @@ async function executeLockSession() {
 }
 
 watch(() => props.classId, (value) => { if (value) selectedClassId.value = value })
-onMounted(loadBaseData)
+onMounted(() => {
+  loadBaseData()
+  window.addEventListener('keydown', handleAttendanceShortcut)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleAttendanceShortcut)
+})
 </script>
 
 <style scoped>
@@ -553,7 +684,7 @@ onMounted(loadBaseData)
   opacity: 0.8;
 }
 
-/* Tuỳ chỉnh Ant Table */
+/* Tùy chỉnh Ant Table */
 :deep(.enterprise-table .ant-table-thead > tr > th) {
   background: #f8fafc;
   color: #475569;
@@ -572,4 +703,86 @@ onMounted(loadBaseData)
 :deep(.enterprise-table .ant-table-tbody > tr:hover > td) {
   background-color: #f8fafc !important;
 }
+
+.attendance-shortcut-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #dbeafe;
+  background: #eff6ff;
+}
+
+.attendance-shortcut-help {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #1e3a8a;
+  font-size: 12px;
+}
+
+.attendance-shortcut-help strong {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.attendance-shortcut-help em {
+  color: #64748b;
+  font-style: normal;
+}
+
+.attendance-shortcut-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attendance-shortcut-actions button {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.attendance-shortcut-actions button:hover {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+
+.attendance-shortcut-actions button.is-muted {
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+.attendance-shortcut-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:deep(.enterprise-table .attendance-row-clickable) {
+  cursor: pointer;
+}
+
+:deep(.enterprise-table .attendance-row-selected > td) {
+  background: #eef4ff !important;
+}
+
+:deep(.enterprise-table .attendance-row-selected:hover > td) {
+  background: #e0ecff !important;
+}
+
+@media (max-width: 900px) {
+  .attendance-shortcut-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 </style>
+

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+
 @theme {
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
@@ -85,7 +88,12 @@
 }
 
 @layer utilities {
-  .bg-page { background-color: var(--bg-primary); }
+  
+  /* Smooth transition for theme switching */
+  .bg-page, .bg-section, .bg-card-base, .text-base-primary, .text-base-secondary, .text-base-muted, .border-base, .border-card-base, .admin-shell, .admin-content, .admin-card, .admin-btn, .admin-table, .ant-table, .ant-table-tbody td, .admin-sidebar-link {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, fill 0.3s ease, stroke 0.3s ease;
+  }
+.bg-page { background-color: var(--bg-primary); }
   .bg-section { background-color: var(--bg-secondary); }
   .bg-card-base { background-color: var(--bg-card); }
   .text-base-primary { color: var(--text-primary); }
@@ -145,6 +153,17 @@
 
   .gradient-primary {
     background: linear-gradient(135deg, #2563eb 0%, #0d9488 100%);
+  }
+
+  .text-on-primary,
+  .text-on-primary * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
+
+  .text-on-primary svg {
+    color: #ffffff !important;
+    stroke: currentColor;
   }
 
   .gradient-hero {
@@ -747,6 +766,51 @@
   color: var(--admin-text-muted);
   background: var(--admin-surface-2);
   border: 1px solid var(--admin-border);
+}
+
+/* Reports export dropdown must sit above the KPI cards below the page header. */
+.reports-export-dropdown,
+.ant-dropdown.reports-export-dropdown {
+  z-index: 3000 !important;
+}
+
+.reports-export-dropdown .ant-dropdown-menu,
+.reports-export-menu {
+  width: 276px;
+  max-width: calc(100vw - 24px);
+  background: #ffffff !important;
+  border: 1px solid var(--admin-border) !important;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18) !important;
+}
+
+.dark .reports-export-dropdown .ant-dropdown-menu,
+.dark .reports-export-menu {
+  background: #0f1729 !important;
+}
+
+.reports-export-menu .ant-dropdown-menu-item {
+  min-height: 34px;
+}
+
+.report-export-menu-item,
+.reports-export-menu .ant-dropdown-menu-item .ant-dropdown-menu-title-content > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.report-export-menu-item .anticon,
+.reports-export-menu .ant-dropdown-menu-item .anticon {
+  flex: 0 0 auto;
+}
+
+.report-export-menu-item span,
+.reports-export-menu .ant-dropdown-menu-title-content span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Admin insight card */

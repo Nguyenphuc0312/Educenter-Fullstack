@@ -34,6 +34,8 @@ public sealed class TuitionInvoice
     public decimal DebtAmount { get; set; }
     public DateTime DueDate { get; set; }
     public DateTime? PartialPaymentDueDate { get; set; }
+    public DateTime? LastReminderSentAt { get; set; }
+    public int ReminderCount { get; set; }
     public InvoiceStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -63,4 +65,14 @@ public sealed class RevenueReportSnapshot
     public int TotalPaidInvoices { get; set; }
     public int TotalUnpaidInvoices { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public sealed class SystemSetting
+{
+    public Guid Id { get; set; }
+    [MaxLength(120)] public string SettingKey { get; set; } = string.Empty;
+    [MaxLength(4000)] public string SettingValue { get; set; } = string.Empty;
+    [MaxLength(500)] public string? Description { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }

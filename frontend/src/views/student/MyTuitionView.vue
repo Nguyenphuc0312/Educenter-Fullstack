@@ -282,7 +282,7 @@ import { tuitionApi } from "@/api/tuitionApi";
 import { paymentApi } from "@/api/paymentApi";
 import { useAuthStore } from "@/stores/auth";
 import { formatDate, formatVnd } from "@/lib/formatters";
-import { downloadExcelReport, reportFilename } from "@/lib/exportDocuments";
+import { openPdfReport, reportFilename } from "@/lib/exportDocuments";
 
 const auth = useAuthStore();
 const invoices = ref([]);
@@ -435,13 +435,13 @@ async function exportReport() {
   }
 
   isExporting.value = true;
-  message.loading({ content: "Đang tạo file báo cáo học phí...", key: "exportReport" });
+  message.loading({ content: "Đang mở mẫu PDF học phí...", key: "exportReport" });
 
   try {
-    downloadExcelReport({
+    openPdfReport({
       title: "Báo cáo học phí & hóa đơn",
       subtitle: "Tổng hợp công nợ, thanh toán và trạng thái hóa đơn của học viên.",
-      filename: reportFilename("bao-cao-hoc-phi-hoa-don"),
+      filename: reportFilename("bao-cao-hoc-phi-hoa-don", "pdf"),
       user: auth.user,
       summary: [
         { label: "Tổng học phí", value: formatVnd(summary.value.total) },
@@ -461,11 +461,11 @@ async function exportReport() {
       ],
       rows: filteredInvoices.value,
       notes: [
-        "File này được tạo từ dữ liệu hóa đơn đang hiển thị trên hệ thống.",
-        "Có thể mở file bằng Excel hoặc LibreOffice để lọc, thống kê và in khi cần nộp hoặc lưu trữ.",
+        "Chọn Save as PDF trong hộp thoại in để lưu hoặc nộp minh chứng.",
+        "Thông tin được tạo từ dữ liệu hóa đơn đang hiển thị trên hệ thống.",
       ],
     });
-    message.success({ content: "Xuất báo cáo học phí thành công.", key: "exportReport", duration: 3 });
+    message.success({ content: "Đã mở mẫu PDF học phí.", key: "exportReport", duration: 3 });
   } catch (err) {
     message.error({ content: "Đã xảy ra lỗi khi tạo báo cáo. Vui lòng thử lại sau.", key: "exportReport", duration: 3 });
   } finally {
@@ -495,10 +495,10 @@ async function downloadReceipt(invoice) {
 
   try {
     const successPayment = latestSuccessfulPayment(invoice.id);
-    downloadExcelReport({
+    openPdfReport({
       title: "Biên lai / Hóa đơn học phí",
       subtitle: "Chứng từ thanh toán điện tử tạo từ EduCenter.",
-      filename: reportFilename(`bien-lai-${invoice.invoiceCode || invoice.id}`),
+      filename: reportFilename(`bien-lai-${invoice.invoiceCode || invoice.id}`, "pdf"),
       user: auth.user,
       summary: [
         { label: "Mã hóa đơn", value: invoice.invoiceCode || invoice.id },
@@ -523,11 +523,11 @@ async function downloadReceipt(invoice) {
         { label: "Phương thức", value: paymentMethodText(successPayment?.method) },
       ],
       notes: [
-        "File Excel này có thể mở bằng Excel hoặc LibreOffice để lọc, thống kê và in khi cần.",
+        "Chọn Save as PDF trong hộp thoại in để lưu hoặc nộp minh chứng.",
         "Thông tin được tạo từ dữ liệu hóa đơn hiện có của học viên.",
       ],
     });
-    message.success({ content: `Đã tải biên lai Excel: ${invoice.invoiceCode}.xls`, key: `pdf-${invoice.id}`, duration: 2 });
+    message.success({ content: `Đã mở mẫu PDF biên lai: ${invoice.invoiceCode}`, key: `pdf-${invoice.id}`, duration: 2 });
   } catch (err) {
     message.error({ content: `Không thể tải biên lai cho hóa đơn ${invoice.invoiceCode}.`, key: `pdf-${invoice.id}`, duration: 2 });
   } finally {

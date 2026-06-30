@@ -39,7 +39,7 @@
               <div class="flex items-center gap-2">
                 <router-link
                   :to="getDashboardLink()"
-                  class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white gradient-primary rounded-lg hover:opacity-90 transition-opacity"
+                  class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white text-on-primary gradient-primary rounded-lg hover:opacity-90 transition-opacity"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect width="7" height="9" x="3" y="3" rx="1"/>
@@ -73,7 +73,7 @@
               <button
                 id="btn-register-nav"
                 @click="router.push('/register')"
-                class="px-4 py-2 text-sm font-semibold text-white gradient-primary rounded-lg transition-opacity hover:opacity-90 cursor-pointer"
+                class="px-4 py-2 text-sm font-semibold text-white text-on-primary gradient-primary rounded-lg transition-opacity hover:opacity-90 cursor-pointer"
               >
                 Đăng ký học
               </button>
@@ -128,7 +128,7 @@
               <router-link
                 :to="getDashboardLink()"
                 @click="mobileOpen = false"
-                class="flex-1 py-2.5 text-center text-sm font-semibold text-white gradient-primary rounded-xl hover:opacity-90 transition-opacity"
+                class="flex-1 py-2.5 text-center text-sm font-semibold text-white text-on-primary gradient-primary rounded-xl hover:opacity-90 transition-opacity"
               >
                 Portal
               </router-link>
@@ -148,7 +148,7 @@
               </button>
               <button
                 @click="goToRegisterMobile"
-                class="flex-1 py-2.5 text-sm font-semibold text-white gradient-primary rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+                class="flex-1 py-2.5 text-sm font-semibold text-white text-on-primary gradient-primary rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
               >
                 Đăng ký học
               </button>

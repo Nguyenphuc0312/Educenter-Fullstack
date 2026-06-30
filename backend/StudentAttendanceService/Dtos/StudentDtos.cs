@@ -5,10 +5,12 @@ namespace StudentAttendanceService.Dtos;
 
 public sealed record StudentResponse(Guid Id, string StudentCode, string FullName, string Email, string Phone, DateTime DateOfBirth, Gender Gender, string Address, string? AvatarUrl, StudentStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record EnrollmentResponse(Guid Id, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, DateTime EnrolledAt, EnrollmentStatus Status, string? Note, DateTime CreatedAt, DateTime UpdatedAt);
-public sealed record MyCourseResponse(Guid Id, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, DateTime EnrolledAt, EnrollmentStatus Status, string? Note, DateTime CreatedAt, DateTime UpdatedAt, DateTime? ClassStartDate, DateTime? ClassEndDate, int TotalSessions, int CompletedSessions, decimal? ProgressPercent, bool CanShowProgress);
+public sealed record MyCourseResponse(Guid Id, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, DateTime EnrolledAt, EnrollmentStatus Status, string? Note, DateTime CreatedAt, DateTime UpdatedAt, DateTime? ClassStartDate, DateTime? ClassEndDate, int TotalSessions, int CompletedSessions, decimal? ProgressPercent, bool CanShowProgress, IReadOnlyList<Guid> TeacherIds, IReadOnlyList<string> TeacherNames);
 public sealed record AttendanceSessionResponse(Guid Id, Guid ClassId, string ClassNameSnapshot, Guid ScheduleId, int SessionNumber, DateTime AttendanceDate, string Topic, Guid CreatedByTeacherId, string CreatedByTeacherName, AttendanceSessionStatus Status, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record AttendanceRecordResponse(Guid Id, Guid AttendanceSessionId, Guid StudentId, string StudentNameSnapshot, AttendanceStatus Status, string? Note, DateTime MarkedAt);
 public sealed record StudentResultResponse(Guid Id, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal MidtermScore, decimal FinalScore, decimal AverageScore, decimal AttendancePercent, ResultStatus ResultStatus, string? Feedback, Guid EvaluatedByTeacherId, string EvaluatedByTeacherName, DateTime EvaluatedAt, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record TeacherReviewResponse(Guid Id, Guid TeacherId, string TeacherNameSnapshot, decimal Rating, string? Comment);
+public sealed record CourseReviewResponse(Guid Id, Guid EnrollmentId, Guid StudentId, string StudentNameSnapshot, Guid CourseId, string CourseNameSnapshot, Guid ClassId, string ClassNameSnapshot, decimal CourseRating, string? CourseComment, IReadOnlyList<TeacherReviewResponse> TeacherReviews, DateTime CreatedAt, DateTime UpdatedAt);
 
 public class CreateStudentRequest
 {
@@ -93,6 +95,29 @@ public class CreateStudentResultRequest
     [Required] public string EvaluatedByTeacherName { get; set; } = string.Empty;
 }
 public sealed class UpdateStudentResultRequest : CreateStudentResultRequest;
+
+public sealed class TeacherReviewItemRequest
+{
+    [Required] public Guid TeacherId { get; set; }
+    [Required] public string TeacherNameSnapshot { get; set; } = string.Empty;
+    [Range(1, 5)] public decimal Rating { get; set; }
+    public string? Comment { get; set; }
+}
+
+public class CreateCourseReviewRequest
+{
+    [Required] public Guid EnrollmentId { get; set; }
+    [Range(1, 5)] public decimal CourseRating { get; set; }
+    public string? CourseComment { get; set; }
+    public List<TeacherReviewItemRequest> TeacherReviews { get; set; } = [];
+}
+
+public sealed class UpdateCourseReviewRequest
+{
+    [Range(1, 5)] public decimal CourseRating { get; set; }
+    public string? CourseComment { get; set; }
+    public List<TeacherReviewItemRequest> TeacherReviews { get; set; } = [];
+}
 
 public sealed record AttendanceSummaryResponse(Guid ScopeId, int TotalSessions, decimal AttendancePercent);
 public sealed record LearningProfileResponse(StudentResponse Student, IReadOnlyList<MyCourseResponse> Courses, IReadOnlyList<StudentResultResponse> Results, AttendanceSummaryResponse AttendanceSummary);

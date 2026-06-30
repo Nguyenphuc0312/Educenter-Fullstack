@@ -1,14 +1,16 @@
-﻿<template>
+<template>
   <div class="min-h-screen bg-page flex flex-col md:flex-row">
     <SidebarNav :menuItems="menuItems" roleTitle="Học viên" />
     <main class="flex-grow p-4 md:p-8 md:pl-72 pt-20 md:pt-8 min-w-0">
       <router-view />
     </main>
+    <AIChatbot role="student" />
   </div>
 </template>
 
 <script setup>
 import SidebarNav from '../components/layout/SidebarNav.vue';
+import AIChatbot from '../components/AIChatbot.vue';
 import '../assets/student.css';
 
 const menuItems = [

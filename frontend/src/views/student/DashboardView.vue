@@ -13,6 +13,7 @@
         :title="`Xin chào, ${student?.fullName || user?.fullName || 'học viên'} 👋`"
         :subtitle="`Mã học viên: ${student?.studentCode || 'N/A'} · Chào mừng bạn quay trở lại hệ thống học tập.`"
       >
+
         <template #actions>
           <router-link
             to="/courses"
@@ -28,6 +29,7 @@
           </router-link>
         </template>
       </PageHeader>
+
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div
@@ -350,20 +352,23 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { useAuthStore } from "../../stores/auth";
-import { studentApi } from "../../api/studentApi";
-import { tuitionApi } from "../../api/tuitionApi";
-import { scheduleApi } from "../../api/scheduleApi";
-import PageHeader from "../../components/ui/PageHeader.vue";
-import LoadingSpinner from "../../components/ui/LoadingSpinner.vue";
-import ErrorState from "../../components/ui/ErrorState.vue";
+import { useAuthStore } from "@/stores/auth";
+import { studentApi } from "@/api/studentApi";
+import { tuitionApi } from "@/api/tuitionApi";
+import { scheduleApi } from "@/api/scheduleApi";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import LoadingSpinner from "@/components/ui/LoadingSpinner.vue";
+import ErrorState from "@/components/ui/ErrorState.vue";
 import {
   formatDate,
   formatPercent,
   formatScore,
   formatTime,
   formatVnd,
-} from "../../lib/formatters";
+} from "@/lib/formatters";
+import { useStatusLabel } from "@/composables/useStatusLabel";
+
+const { statusText, statusClass, shiftText, dayText } = useStatusLabel();
 
 const authStore = useAuthStore();
 const user = computed(() => authStore.user);
@@ -475,6 +480,7 @@ async function fetchDashboardData() {
         .map((id) => scheduleApi.getByClass(id).catch(() => [])),
     );
     schedules.value = scheduleGroups.flat();
+
   } catch (err) {
     console.error(err);
     error.value =
@@ -514,56 +520,5 @@ function isInvalidEnrollmentPeriod(course) {
   return new Date(course.enrolledAt).getTime() > new Date(course.classEndDate).getTime();
 }
 
-function statusText(status) {
-  const map = {
-    Pending: "Chờ duyệt",
-    Confirmed: "Đã xác nhận",
-    Studying: "Đang học",
-    Completed: "Hoàn thành",
-    Cancelled: "Đã hủy",
-    Passed: "Đạt",
-    Failed: "Chưa đạt",
-    InProgress: "Đang học",
-    Paid: "Đã thanh toán",
-    Partial: "Thanh toán một phần",
-    Unpaid: "Chưa thanh toán",
-    Overdue: "Quá hạn",
-  };
-  return map[status] || status || "-";
-}
 
-function statusClass(status) {
-  const base = "px-2 py-0.5 text-xs font-bold rounded border ";
-  if (["Studying", "Confirmed", "Paid", "Passed"].includes(String(status)))
-    return base + "bg-emerald-50 text-emerald-600 border-emerald-200";
-  if (["Pending", "Partial", "InProgress"].includes(String(status)))
-    return base + "bg-blue-50 text-blue-600 border-blue-200";
-  if (["Overdue", "Failed"].includes(String(status)))
-    return base + "bg-red-50 text-red-600 border-red-200";
-  return base + "bg-slate-100 text-slate-600 border-slate-200";
-}
-
-function shiftText(shift) {
-  return (
-    { Morning: "Ca Sáng", Afternoon: "Ca Chiều", Evening: "Ca Tối" }[shift] ||
-    shift ||
-    "Ca học"
-  );
-}
-
-function dayText(day) {
-  return (
-    {
-      Monday: "Thứ 2",
-      Tuesday: "Thứ 3",
-      Wednesday: "Thứ 4",
-      Thursday: "Thứ 5",
-      Friday: "Thứ 6",
-      Saturday: "Thứ 7",
-      Sunday: "Chủ nhật",
-    }[day] ||
-    day ||
-    "Ngày học"
-  );
-}
 </script>

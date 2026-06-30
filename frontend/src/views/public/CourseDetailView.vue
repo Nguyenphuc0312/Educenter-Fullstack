@@ -258,6 +258,7 @@ const profileForm = reactive({
   gender: 0,
   address: '',
 })
+const PHONE_PATTERN = /^0\d{9}$/
 
 const overviewItems = computed(() => [
   { index: 1, title: 'Tổng số buổi', value: `${course.value?.sessions || 0} buổi học thực chiến` },
@@ -367,12 +368,17 @@ async function submitProfileAndEnroll() {
     return
   }
 
+  if (!PHONE_PATTERN.test(String(profileForm.phone || '').trim())) {
+    message.error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.')
+    return
+  }
+
   profileSubmitting.value = true
   try {
     await authStore.completeStudentProfile({
       fullName: profileForm.fullName,
       email: profileForm.email,
-      phone: profileForm.phone,
+      phone: String(profileForm.phone || '').trim(),
       dateOfBirth: new Date(profileForm.dateOfBirth).toISOString(),
       gender: profileForm.gender,
       address: profileForm.address,

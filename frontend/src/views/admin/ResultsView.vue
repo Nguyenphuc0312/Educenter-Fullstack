@@ -91,12 +91,40 @@
 
       <!-- Midterm score with mini progress bar -->
       <template v-else-if="column.key === 'midtermScore'">
-        <ScoreCell :score="record.midtermScore" />
+        <div class="space-y-0.5">
+          <span class="text-xs font-semibold" :class="scoreClass(scoreValue(record, 'midtermScore'))">
+            {{ formatScore(scoreValue(record, 'midtermScore')) }}
+          </span>
+          <div
+            v-if="scoreValue(record, 'midtermScore') != null"
+            class="w-14 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"
+          >
+            <div
+              class="h-full rounded-full transition-all"
+              :class="scoreBarClass(scoreValue(record, 'midtermScore'))"
+              :style="{ width: scoreBarWidth(scoreValue(record, 'midtermScore')) }"
+            ></div>
+          </div>
+        </div>
       </template>
 
       <!-- Final score with mini progress bar -->
       <template v-else-if="column.key === 'finalScore'">
-        <ScoreCell :score="record.finalScore" />
+        <div class="space-y-0.5">
+          <span class="text-xs font-semibold" :class="scoreClass(scoreValue(record, 'finalScore'))">
+            {{ formatScore(scoreValue(record, 'finalScore')) }}
+          </span>
+          <div
+            v-if="scoreValue(record, 'finalScore') != null"
+            class="w-14 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"
+          >
+            <div
+              class="h-full rounded-full transition-all"
+              :class="scoreBarClass(scoreValue(record, 'finalScore'))"
+              :style="{ width: scoreBarWidth(scoreValue(record, 'finalScore')) }"
+            ></div>
+          </div>
+        </div>
       </template>
 
       <!-- Average score colored -->
@@ -190,9 +218,12 @@ const filterStatus = ref(undefined)
 const courses = ref([])
 const classes = ref([])
 const students = ref([])
+const classStudents = ref([])
+const loadedClassStudentsFor = ref('')
 const loadingCourses = ref(false)
 const loadingClasses = ref(false)
 const loadingStudents = ref(false)
+const loadingClassStudents = ref(false)
 
 const columns = [
   { title: 'Học viên', key: 'studentNameSnapshot', width: 220 },
@@ -225,9 +256,10 @@ const fields = computed(() => [
     name: 'studentId',
     label: 'Học viên',
     type: 'select',
-    options: studentOptions(students.value),
+    options: (formState) => resultStudentOptions(formState),
     required: true,
     default: '',
+    disabled: (formState) => !formState.classId || loadingClassStudents.value,
     placeholder: loadingStudents.value ? 'Đang tải học viên...' : 'Chọn học viên',
     onChange: (_value, formState, { option }) => applyStudentSnapshot(formState, option?.item),
   },
@@ -246,17 +278,29 @@ const fields = computed(() => [
         formState.classId = ''
         formState.classNameSnapshot = ''
       }
+      formState.studentId = ''
+      formState.studentNameSnapshot = ''
+      formState.studentCodeSnapshot = ''
+      classStudents.value = []
+      loadedClassStudentsFor.value = ''
     },
   },
   {
     name: 'classId',
     label: 'Lớp học',
     type: 'select',
-    options: classOptions(classes.value),
+    options: (formState) => filteredClassOptions(formState.courseId),
     required: true,
     default: '',
+    disabled: (formState) => !formState.courseId,
     placeholder: loadingClasses.value ? 'Đang tải lớp học...' : 'Chọn lớp học',
-    onChange: (_value, formState, { option }) => applyClassSnapshot(formState, option?.item, courses.value),
+    onChange: async (value, formState, { option }) => {
+      applyClassSnapshot(formState, option?.item, courses.value)
+      formState.studentId = ''
+      formState.studentNameSnapshot = ''
+      formState.studentCodeSnapshot = ''
+      await loadClassStudents(value)
+    },
   },
   { name: 'studentNameSnapshot', label: 'Tên học viên', hidden: true, required: true, default: '' },
   { name: 'studentCodeSnapshot', label: 'Mã học viên', hidden: true, default: '' },
@@ -297,6 +341,68 @@ function resetCustomFilters() {
   filterCourseId.value = undefined
   filterScoreRange.value = undefined
   filterStatus.value = undefined
+}
+
+function resultStudentOptions(formState) {
+  if (!formState.classId) return []
+  if (loadedClassStudentsFor.value === formState.classId) return studentOptions(classStudents.value)
+
+  const selectedStudent = students.value.find((student) => student.id === formState.studentId)
+  return selectedStudent ? studentOptions([selectedStudent]) : []
+}
+
+async function loadClassStudents(classId) {
+  classStudents.value = []
+  loadedClassStudentsFor.value = ''
+  if (!classId) return
+
+  loadingClassStudents.value = true
+  try {
+    const response = await classApi.getStudents(classId)
+    classStudents.value = asList(response)
+    loadedClassStudentsFor.value = classId
+  } catch (error) {
+    classStudents.value = []
+  } finally {
+    loadingClassStudents.value = false
+  }
+}
+
+function filteredClassOptions(courseId) {
+  if (!courseId) return []
+  return classOptions(classes.value.filter((cls) => String(cls.courseId) === String(courseId)))
+}
+
+function scoreValue(record, key) {
+  const pascalKey = key.charAt(0).toUpperCase() + key.slice(1)
+  const value = record?.[key] ?? record?.[pascalKey]
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  return Number.isNaN(numeric) ? null : numeric
+}
+
+function formatScore(score) {
+  if (score === null || score === undefined) return '—'
+  return Number.isInteger(score) ? String(score) : score.toFixed(1)
+}
+
+function scoreClass(score) {
+  if (score === null || score === undefined) return 'text-base-muted'
+  if (score >= 8) return 'text-emerald-600 dark:text-emerald-400'
+  if (score >= 5) return 'text-blue-600 dark:text-blue-400'
+  return 'text-rose-600 dark:text-rose-400'
+}
+
+function scoreBarClass(score) {
+  if (score === null || score === undefined) return ''
+  if (score >= 8) return 'bg-emerald-500'
+  if (score >= 5) return 'bg-blue-400'
+  return 'bg-rose-400'
+}
+
+function scoreBarWidth(score) {
+  if (score === null || score === undefined) return '0%'
+  return `${Math.min(Math.max(score, 0), 10) * 10}%`
 }
 
 // Avatar helpers

@@ -34,12 +34,15 @@ const TeacherSchedule = () => import("../views/teacher/ScheduleView.vue");
 const TeacherAttendance = () => import("../views/teacher/AttendanceView.vue");
 const TeacherResultInput = () => import("../views/teacher/ResultInputView.vue");
 const TeacherProfile = () => import("../views/teacher/ProfileView.vue");
+const TeacherMaterialGenerator = () => import("../views/teacher/MaterialGeneratorView.vue");
 
 // Admin Pages
 const AdminDashboard = () => import("../views/admin/DashboardView.vue");
 const AdminCourses = () => import("../views/admin/CoursesView.vue");
 const AdminClasses = () => import("../views/admin/ClassesView.vue");
+const AdminRooms = () => import("../views/admin/RoomsView.vue");
 const AdminSchedules = () => import("../views/admin/SchedulesView.vue");
+const AdminTeachingSubstitutions = () => import("../views/admin/TeachingSubstitutionsView.vue");
 const AdminTeachers = () => import("../views/admin/TeachersView.vue");
 const AdminStudents = () => import("../views/admin/StudentsView.vue");
 const AdminEnrollments = () => import("../views/admin/EnrollmentsView.vue");
@@ -49,6 +52,8 @@ const AdminAccounts = () => import("../views/admin/AccountsView.vue");
 const AdminTuition = () => import("../views/admin/TuitionView.vue");
 const AdminPayments = () => import("../views/admin/PaymentsView.vue");
 const AdminReports = () => import("../views/admin/ReportsView.vue");
+const AdminSettings = () => import("../views/admin/SettingsView.vue");
+const AdminAiKnowledge = () => import("../views/admin/AiKnowledgeView.vue");
 
 const routes = [
   // Public
@@ -99,7 +104,7 @@ const routes = [
       {
         path: "/student/courses/:id",
         name: "StudentCourseDetail",
-        component: () => import("../views/student/CourseDetail.vue"), // Trỏ đến file mới sẽ tạo ở Bước 3
+        component: () => import("../views/student/CourseDetail.vue"),
         meta: { requiresAuth: true, role: "student" },
       },
     ],
@@ -150,6 +155,11 @@ const routes = [
         component: TeacherResultInput,
         props: true,
       },
+      {
+        path: "materials",
+        name: "teacher-materials",
+        component: TeacherMaterialGenerator,
+      },
       { path: "profile", name: "teacher-profile", component: TeacherProfile },
     ],
   },
@@ -163,7 +173,9 @@ const routes = [
       { path: "dashboard", name: "admin-dashboard", component: AdminDashboard },
       { path: "courses", name: "admin-courses", component: AdminCourses },
       { path: "classes", name: "admin-classes", component: AdminClasses },
+      { path: "rooms", name: "admin-rooms", component: AdminRooms },
       { path: "schedules", name: "admin-schedules", component: AdminSchedules },
+      { path: "teaching-substitutions", name: "admin-teaching-substitutions", component: AdminTeachingSubstitutions },
       { path: "teachers", name: "admin-teachers", component: AdminTeachers },
       { path: "students", name: "admin-students", component: AdminStudents },
       {
@@ -181,6 +193,8 @@ const routes = [
       { path: "tuition", name: "admin-tuition", component: AdminTuition },
       { path: "payments", name: "admin-payments", component: AdminPayments },
       { path: "reports", name: "admin-reports", component: AdminReports },
+      { path: "settings", name: "admin-settings", component: AdminSettings },
+      { path: "ai-knowledge", name: "admin-ai-knowledge", component: AdminAiKnowledge },
     ],
   },
 ];
@@ -223,6 +237,30 @@ router.beforeEach((to, from, next) => {
   }
 
   next();
+});
+
+const PAGE_TITLES = {
+  "home": "Trang chủ | EduCenter",
+  "login": "Đăng nhập | EduCenter",
+  "student-dashboard": "Bảng điều khiển học viên | EduCenter",
+  "student-courses": "Khóa học của tôi | EduCenter",
+  "student-schedule": "Lịch học học viên | EduCenter",
+  "student-attendance": "Chuyên cần học viên | EduCenter",
+  "student-results": "Kết quả học tập | EduCenter",
+  "student-tuition": "Học phí học viên | EduCenter",
+  "student-profile": "Hồ sơ cá nhân | EduCenter",
+  "teacher-dashboard": "Bảng điều khiển giảng viên | EduCenter",
+  "teacher-classes": "Lớp học đảm nhận | EduCenter",
+  "teacher-schedule": "Lịch giảng dạy | EduCenter",
+  "teacher-materials": "Tạo tài liệu giảng dạy (AI) | EduCenter",
+  "admin-dashboard": "Bảng điều khiển quản trị | EduCenter",
+  "admin-reports": "Báo cáo & Thống kê | EduCenter",
+  "forbidden": "403 - Không có quyền truy cập | EduCenter",
+  "not-found": "404 - Không tìm thấy trang | EduCenter",
+};
+
+router.afterEach((to) => {
+  document.title = PAGE_TITLES[to.name] || to.meta.title || "EduCenter";
 });
 
 export default router;

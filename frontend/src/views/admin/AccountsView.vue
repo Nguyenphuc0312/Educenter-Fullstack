@@ -171,6 +171,15 @@ const statusOptions = toOptions(ACCOUNT_STATUS, { 1: 'green', 2: 'red' })
 // Custom filter states
 const filterRole = ref(undefined)
 const filterStatusValue = ref(undefined)
+const phoneRules = [
+  {
+    validator: async (_rule, value) => {
+      const phone = String(value || '').trim()
+      if (!phone || /^0\d{9}$/.test(phone)) return
+      throw new Error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0')
+    }
+  }
+]
 
 // Confirmation modal states
 const confirmOpen = ref(false)
@@ -201,7 +210,7 @@ const fields = [
   },
   { name: 'fullName', label: 'Họ tên', required: true, default: '' },
   { name: 'email', label: 'Email', required: true, default: '' },
-  { name: 'phone', label: 'Điện thoại', default: '' },
+  { name: 'phone', label: 'Điện thoại', default: '', rules: phoneRules },
   {
     name: 'role',
     label: 'Vai trò',

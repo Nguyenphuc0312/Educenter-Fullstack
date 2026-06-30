@@ -151,7 +151,7 @@
         <div @click="mobileOpen = false" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
         <!-- Drawer Content -->
         <transition name="slide">
-          <div class="relative flex flex-col w-64 max-w-xs h-full z-10">
+          <div v-if="mobileOpen" class="relative flex flex-col w-64 max-w-xs h-full z-10">
             <div class="flex flex-col h-full bg-card-base border-r border-base">
               <!-- Brand Header -->
               <div class="flex items-center gap-2.5 px-6 h-16 border-b border-base shrink-0">
@@ -415,10 +415,28 @@ const BarChart3 = {
   ])
 };
 
+const Bot = {
+  render: () => h('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+    h('path', { d: 'M12 8V4H8' }),
+    h('rect', { width: '16', height: '12', x: '4', y: '8', rx: '2' }),
+    h('path', { d: 'M2 14h2' }),
+    h('path', { d: 'M20 14h2' }),
+    h('path', { d: 'M15 13v2' }),
+    h('path', { d: 'M9 13v2' })
+  ])
+};
+
 const UserIcon = {
   render: () => h('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
     h('path', { d: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2' }),
     h('circle', { cx: '12', cy: '7', r: '4' })
+  ])
+};
+
+const SettingsIcon = {
+  render: () => h('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+    h('path', { d: 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z' }),
+    h('circle', { cx: '12', cy: '12', r: '3' })
   ])
 };
 
@@ -435,20 +453,25 @@ const mapIcon = (iconName) => {
     case 'CreditCard': return CreditCard;
     case 'DollarSign': return DollarSign;
     case 'BarChart3': return BarChart3;
+    case 'Bot': return Bot;
     case 'User': return UserIcon;
+    case 'Settings': return SettingsIcon;
     default: return BookOpen;
   }
 };
 
 // Admin specific items grouped
 const generalItems = [
+  { to: 'settings', label: 'Cấu hình', icon: SettingsIcon },
   { to: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard }
 ];
 
 const courseScheduleItems = [
+  { to: 'rooms', label: 'Phòng học', icon: Calendar },
   { to: 'courses', label: 'Khóa học', icon: BookOpen },
   { to: 'classes', label: 'Lớp học', icon: Users },
   { to: 'schedules', label: 'Lịch học', icon: Calendar },
+  { to: 'teaching-substitutions', label: 'Dạy thay', icon: UserCheck },
   { to: 'teachers', label: 'Giảng viên', icon: Award }
 ];
 
@@ -463,7 +486,8 @@ const paymentReportItems = [
   { to: 'accounts', label: 'Tài khoản', icon: UserCheck },
   { to: 'tuition', label: 'Học phí', icon: CreditCard },
   { to: 'payments', label: 'Thanh toán', icon: DollarSign },
-  { to: 'reports', label: 'Báo cáo & Thống kê', icon: BarChart3 }
+  { to: 'reports', label: 'Báo cáo & Thống kê', icon: BarChart3 },
+  { to: 'ai-knowledge', label: 'AI Knowledge', icon: Bot }
 ];
 
 // Normalize menuItems for other roles

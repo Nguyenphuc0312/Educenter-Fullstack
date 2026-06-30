@@ -8,8 +8,11 @@ public sealed class CourseDbContext(DbContextOptions<CourseDbContext> options) :
 {
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<Class> Classes => Set<Class>();
+    public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Schedule> Schedules => Set<Schedule>();
     public DbSet<Teacher> Teachers => Set<Teacher>();
+    public DbSet<ClassTeacher> ClassTeachers => Set<ClassTeacher>();
+    public DbSet<TeachingSubstitutionRequest> TeachingSubstitutionRequests => Set<TeachingSubstitutionRequest>();
     public DbSet<ClassSeatReservation> ClassSeatReservations => Set<ClassSeatReservation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -20,23 +23,48 @@ public sealed class CourseDbContext(DbContextOptions<CourseDbContext> options) :
         modelBuilder.Entity<Course>().Property(x => x.Rating).HasPrecision(3, 2);
         modelBuilder.Entity<Teacher>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<Teacher>().Property(x => x.Rating).HasPrecision(3, 2);
+        modelBuilder.Entity<Room>().HasIndex(x => x.Code).IsUnique();
+        modelBuilder.Entity<Room>().HasIndex(x => x.Name).IsUnique();
         modelBuilder.Entity<Class>().HasIndex(x => x.ClassCode).IsUnique();
+        modelBuilder.Entity<ClassTeacher>().HasKey(x => new { x.ClassId, x.TeacherId });
+        modelBuilder.Entity<ClassTeacher>().HasIndex(x => x.TeacherId);
+        modelBuilder.Entity<Schedule>().HasIndex(x => x.AssignedTeacherId);
+        modelBuilder.Entity<Schedule>().HasIndex(x => x.SubstituteTeacherId);
+        modelBuilder.Entity<TeachingSubstitutionRequest>().HasIndex(x => x.ScheduleId);
+        modelBuilder.Entity<TeachingSubstitutionRequest>().HasIndex(x => x.Status);
         modelBuilder.Entity<ClassSeatReservation>().HasKey(x => x.EnrollmentId);
         modelBuilder.Entity<ClassSeatReservation>().HasIndex(x => x.ClassId);
         modelBuilder.Entity<Class>().HasOne(x => x.Course).WithMany(x => x.Classes).HasForeignKey(x => x.CourseId);
         modelBuilder.Entity<Class>().HasOne(x => x.Teacher).WithMany(x => x.Classes).HasForeignKey(x => x.TeacherId);
+        modelBuilder.Entity<Class>().HasOne(x => x.RoomRef).WithMany(x => x.Classes).HasForeignKey(x => x.RoomId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ClassTeacher>().HasOne(x => x.Class).WithMany(x => x.ClassTeachers).HasForeignKey(x => x.ClassId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ClassTeacher>().HasOne(x => x.Teacher).WithMany().HasForeignKey(x => x.TeacherId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Schedule>().HasOne(x => x.Class).WithMany(x => x.Schedules).HasForeignKey(x => x.ClassId);
+        modelBuilder.Entity<Schedule>().HasOne(x => x.AssignedTeacher).WithMany().HasForeignKey(x => x.AssignedTeacherId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Schedule>().HasOne(x => x.SubstituteTeacher).WithMany().HasForeignKey(x => x.SubstituteTeacherId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<TeachingSubstitutionRequest>().HasOne(x => x.Schedule).WithMany(x => x.SubstituteRequests).HasForeignKey(x => x.ScheduleId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<TeachingSubstitutionRequest>().HasOne(x => x.RequestingTeacher).WithMany().HasForeignKey(x => x.RequestingTeacherId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<TeachingSubstitutionRequest>().HasOne(x => x.SubstituteTeacher).WithMany().HasForeignKey(x => x.SubstituteTeacherId).OnDelete(DeleteBehavior.Restrict);
 
         var now = new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
         var teacherIds = Enumerable.Range(1, 4).Select(i => Guid.Parse($"11111111-1111-1111-1111-{i:000000000000}")).ToArray();
         var courseIds = Enumerable.Range(1, 8).Select(i => Guid.Parse($"22222222-2222-2222-2222-{i:000000000000}")).ToArray();
         var classIds = Enumerable.Range(1, 6).Select(i => Guid.Parse($"33333333-3333-3333-3333-{i:000000000000}")).ToArray();
+        var roomIds = Enumerable.Range(1, 5).Select(i => Guid.Parse($"55555555-5555-5555-5555-{i:000000000000}")).ToArray();
 
         modelBuilder.Entity<Teacher>().HasData(
             new Teacher { Id = teacherIds[0], FullName = "Nguyen Van Teacher", Email = "teacher01@educenter.vn", Phone = "0901000001", Specialization = "Frontend", Bio = "React/Vue mentor", ExperienceYears = 6, Rating = 4.8m, Status = TeacherStatus.Active, CreatedAt = now, UpdatedAt = now },
             new Teacher { Id = teacherIds[1], FullName = "Tran Thi Backend", Email = "teacher02@educenter.vn", Phone = "0901000002", Specialization = "Backend", Bio = "ASP.NET Core mentor", ExperienceYears = 8, Rating = 4.9m, Status = TeacherStatus.Active, CreatedAt = now, UpdatedAt = now },
             new Teacher { Id = teacherIds[2], FullName = "Le SQL Master", Email = "teacher03@educenter.vn", Phone = "0901000003", Specialization = "Database", Bio = "SQL Server trainer", ExperienceYears = 7, Rating = 4.7m, Status = TeacherStatus.Active, CreatedAt = now, UpdatedAt = now },
             new Teacher { Id = teacherIds[3], FullName = "Pham UI Mentor", Email = "teacher04@educenter.vn", Phone = "0901000004", Specialization = "UI/UX", Bio = "Product design trainer", ExperienceYears = 5, Rating = 4.6m, Status = TeacherStatus.Active, CreatedAt = now, UpdatedAt = now }
+        );
+
+        modelBuilder.Entity<Room>().HasData(
+            new Room { Id = roomIds[0], Code = "A101", Name = "Phòng A101", Capacity = 30, Note = "Phòng học lý thuyết", IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new Room { Id = roomIds[1], Code = "B202", Name = "Phòng B202", Capacity = 35, Note = "Phòng học thực hành", IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new Room { Id = roomIds[2], Code = "C303", Name = "Phòng C303", Capacity = 25, Note = "Phòng học nhóm nhỏ", IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new Room { Id = roomIds[3], Code = "LAB01", Name = "Phòng Lab 01", Capacity = 28, Note = "Phòng máy tính", IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new Room { Id = roomIds[4], Code = "ONLINE", Name = "Lớp trực tuyến", Capacity = 100, Note = "Phòng học online", IsActive = true, CreatedAt = now, UpdatedAt = now }
         );
 
         var courseNames = new[] { "ReactJS Co ban", "VueJS Co ban", "SQL Server cho nguoi moi", "ASP.NET Core API", "Fullstack Web Developer", "Node.js Backend", "UI/UX Design Co ban", "Tin hoc van phong" };
@@ -74,7 +102,8 @@ public sealed class CourseDbContext(DbContextOptions<CourseDbContext> options) :
             ClassName = $"{courseNames[i]} - Lop {i + 1}",
             TeacherId = teacherIds[i % teacherIds.Length],
             TeacherNameSnapshot = i % 2 == 0 ? "Nguyen Van Teacher" : "Tran Thi Backend",
-            Room = i % 2 == 0 ? "A101" : "B202",
+            RoomId = i % 2 == 0 ? roomIds[0] : roomIds[1],
+            Room = i % 2 == 0 ? "Phòng A101" : "Phòng B202",
             MaxStudents = 30,
             CurrentStudents = 10 + i * 3,
             StartDate = now.AddDays(i * 7),

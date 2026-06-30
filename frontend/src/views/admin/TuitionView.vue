@@ -12,7 +12,7 @@
       :form-groups="formGroups"
       :filter-fn="customFilter"
       :can-select="canMarkOverdue"
-      :has-row-actions="canMarkOverdue"
+      :has-row-actions="hasTuitionActions"
       @reset="resetCustomFilters"
     >
       <!-- Custom Filters -->
@@ -59,6 +59,15 @@
         <button
           type="button"
           class="admin-btn admin-btn-secondary h-9 px-3"
+          :disabled="upcomingReminderLoading"
+          @click="sendUpcomingReminders"
+        >
+          <span v-if="upcomingReminderLoading" class="inline-block w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin"></span>
+          Nhắc sắp đến hạn
+        </button>
+        <button
+          type="button"
+          class="admin-btn admin-btn-secondary h-9 px-3"
           :disabled="scanLoading"
           @click="scanOverdueInvoices"
         >
@@ -87,6 +96,13 @@
           @click="triggerMarkOverdue(record.id, refresh)"
         >
           Đánh dấu quá hạn
+        </a-menu-item>
+        <a-menu-item
+          v-if="canSendReminder(record)"
+          class="rounded-lg px-3 py-2 text-xs"
+          @click="triggerSendReminder(record, refresh)"
+        >
+          Gửi cảnh báo học phí
         </a-menu-item>
       </template>
 
@@ -138,12 +154,78 @@
 
         <!-- Student name cell with code -->
         <template v-else-if="column.key === 'studentNameSnapshot'">
-          <div class="leading-tight">
-            <div class="text-xs font-semibold text-base-primary truncate max-w-[160px]" :title="record.studentNameSnapshot">
-              {{ record.studentNameSnapshot || '—' }}
+          <a-popover trigger="hover" placement="rightTop" overlay-class-name="tuition-student-popover">
+            <template #content>
+              <div class="tuition-student-card">
+                <div class="tuition-student-header">
+                  <div
+                    class="tuition-student-avatar"
+                    :style="{ background: avatarColor(studentDisplayName(record)) }"
+                  >
+                    {{ initials(studentDisplayName(record)) }}
+                  </div>
+                  <div class="min-w-0">
+                    <h3>{{ studentDisplayName(record) || 'Học viên' }}</h3>
+                    <p>{{ studentDisplayCode(record) || 'Chưa có mã học viên' }}</p>
+                  </div>
+                </div>
+
+                <div class="tuition-student-grid">
+                  <div><span>Email</span><strong>{{ studentDetail(record).email || '—' }}</strong></div>
+                  <div><span>Điện thoại</span><strong>{{ studentDetail(record).phone || '—' }}</strong></div>
+                  <div><span>Ngày sinh</span><strong>{{ formatDate(studentDetail(record).dateOfBirth) }}</strong></div>
+                  <div><span>Tuổi</span><strong>{{ computeAge(studentDetail(record).dateOfBirth) }}</strong></div>
+                  <div><span>Giới tính</span><strong>{{ genderLabel(studentDetail(record).gender) }}</strong></div>
+                  <div><span>Trạng thái</span><strong>{{ studentStatusLabel(studentDetail(record).status) }}</strong></div>
+                </div>
+
+                <div class="tuition-student-address">
+                  <span>Địa chỉ</span>
+                  <strong>{{ studentDetail(record).address || 'Chưa cập nhật' }}</strong>
+                </div>
+
+                <div class="tuition-student-footer">
+                  <div>
+                    <span>Khóa học</span>
+                    <strong>{{ record.courseNameSnapshot || '—' }}</strong>
+                  </div>
+                  <div>
+                    <span>Lớp học</span>
+                    <strong>{{ record.classNameSnapshot || '—' }}</strong>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <div class="tuition-student-cell">
+              <div
+                class="tuition-student-cell-avatar"
+                :style="{ background: avatarColor(studentDisplayName(record)) }"
+              >
+                {{ initials(studentDisplayName(record)) }}
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-base-primary truncate max-w-[160px]" :title="studentDisplayName(record)">
+                  {{ studentDisplayName(record) || '—' }}
+                </div>
+                <div v-if="studentDisplayCode(record)" class="text-[10px] text-base-muted font-mono truncate max-w-[160px]">
+                  {{ studentDisplayCode(record) }}
+                </div>
+              </div>
             </div>
-            <div v-if="record.studentCodeSnapshot" class="text-[10px] text-base-muted truncate max-w-[160px]">
-              {{ record.studentCodeSnapshot }}
+          </a-popover>
+        </template>
+
+        <template v-else-if="column.key === 'reminderStatus'">
+          <div class="leading-tight">
+            <span
+              class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+              :class="record.lastReminderSentAt ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-slate-50 text-slate-500 border border-slate-100'"
+            >
+              {{ record.lastReminderSentAt ? `Đã cảnh báo ${record.reminderCount || 1} lần` : 'Chưa cảnh báo' }}
+            </span>
+            <div v-if="record.lastReminderSentAt" class="mt-1 text-[10px] text-base-muted">
+              {{ formatDateTime(record.lastReminderSentAt) }}
             </div>
           </div>
         </template>
@@ -204,11 +286,38 @@ const confirmTitle = ref('')
 const confirmMsg = ref('')
 const confirmLoading = ref(false)
 const scanLoading = ref(false)
+const upcomingReminderLoading = ref(false)
 const resourceView = ref(null)
 let confirmActionCallback = null
 
+const STUDENT_STATUS_LABEL = {
+  1: 'Hoạt động',
+  2: 'Không hoạt động',
+  3: 'Tạm dừng',
+  Active: 'Hoạt động',
+  Inactive: 'Không hoạt động',
+  Suspended: 'Tạm dừng',
+}
+
+const GENDER_LABEL = {
+  0: 'Không rõ',
+  1: 'Nam',
+  2: 'Nữ',
+  3: 'Khác',
+  Unknown: 'Không rõ',
+  Male: 'Nam',
+  Female: 'Nữ',
+  Other: 'Khác',
+}
+
+const AVATAR_COLORS = [
+  '#4f46e5', '#7c3aed', '#db2777', '#0891b2',
+  '#059669', '#d97706', '#dc2626', '#65a30d',
+]
+
 // Table columns
 const columns = [
+  { title: 'Cảnh báo', key: 'reminderStatus', width: 150 },
   { title: 'Mã hóa đơn', key: 'invoiceCode', width: 140 },
   { title: 'Học viên', key: 'studentNameSnapshot', width: 180 },
   { title: 'Khóa học', dataIndex: 'courseNameSnapshot', key: 'courseNameSnapshot', width: 160, ellipsis: true },
@@ -217,7 +326,7 @@ const columns = [
   { title: 'Còn nợ', key: 'remainingAmount', width: 110, sortValue: (record) => Number(record.totalAmount || 0) - Number(record.paidAmount || 0) },
   { title: 'Tiến độ', key: 'progress', width: 200, sortValue: (record) => Number(record.totalAmount) > 0 ? Number(record.paidAmount || 0) / Number(record.totalAmount) : 0 },
   { title: 'Hạn đóng', dataIndex: 'dueDate', key: 'dueDate', type: 'date', width: 120 },
-  { title: 'Trạng thái', dataIndex: 'status', key: 'status', type: 'status', width: 130 },
+  { title: 'Trạng thái', dataIndex: 'status', key: 'status', type: 'status', width: 160 },
 ]
 
 // Form fields — clean, no raw IDs
@@ -269,9 +378,10 @@ const fields = computed(() => [
     name: 'classId',
     label: 'Lớp học',
     type: 'select',
-    options: classOptions(classes.value),
+    options: (formState) => filteredClassOptions(formState.courseId),
     required: true,
     default: '',
+    disabled: (formState) => !formState.courseId,
     placeholder: loadingClasses.value ? 'Đang tải lớp học...' : 'Chọn lớp học',
     onChange: (_value, formState, { option }) => applyClassSnapshot(formState, option?.item, courses.value),
   },
@@ -330,6 +440,11 @@ function resetCustomFilters() {
   filterDueDateRange.value = null
 }
 
+function filteredClassOptions(courseId) {
+  if (!courseId) return []
+  return classOptions(classes.value.filter((cls) => String(cls.courseId) === String(courseId)))
+}
+
 function getRemaining(record) {
   return Math.max((record.totalAmount || 0) - (record.paidAmount || 0), 0)
 }
@@ -355,6 +470,14 @@ function canMarkOverdue(record) {
   return dueDate < today
 }
 
+function canSendReminder(record) {
+  return Boolean(record) && !isPaid(record.status) && getRemaining(record) > 0
+}
+
+function hasTuitionActions(record) {
+  return canMarkOverdue(record) || canSendReminder(record)
+}
+
 function getPaymentProgress(record) {
   if (!record.totalAmount || record.totalAmount === 0) return 0
   return Math.min(Math.round(((record.paidAmount || 0) / record.totalAmount) * 100), 100)
@@ -372,6 +495,85 @@ function shortCode(code) {
   if (!code) return '—'
   if (code.length <= 12) return code
   return code.substring(0, 8) + '…'
+}
+
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function formatDate(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('vi-VN')
+}
+
+function studentDetail(record) {
+  const matched = students.value.find((student) => sameId(student.id, record.studentId))
+  return matched || {
+    fullName: record.studentNameSnapshot,
+    studentCode: record.studentCodeSnapshot,
+  }
+}
+
+function studentDisplayName(record) {
+  return studentDetail(record).fullName || record.studentNameSnapshot || ''
+}
+
+function studentDisplayCode(record) {
+  return studentDetail(record).studentCode || record.studentCodeSnapshot || ''
+}
+
+function initials(name) {
+  if (!name) return '?'
+  const parts = String(name).trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+}
+
+function avatarColor(name) {
+  if (!name) return AVATAR_COLORS[0]
+  let hash = 0
+  for (let i = 0; i < name.length; i += 1) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+function genderLabel(gender) {
+  return GENDER_LABEL[gender] || '—'
+}
+
+function studentStatusLabel(status) {
+  return STUDENT_STATUS_LABEL[status] || '—'
+}
+
+function ageFromDate(dob) {
+  if (!dob) return 0
+  const birth = new Date(dob)
+  if (Number.isNaN(birth.getTime())) return 0
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthOffset = today.getMonth() - birth.getMonth()
+  if (monthOffset < 0 || (monthOffset === 0 && today.getDate() < birth.getDate())) age -= 1
+  return Math.max(age, 0)
+}
+
+function computeAge(dob) {
+  const age = ageFromDate(dob)
+  return age > 0 ? `${age} tuổi` : '—'
+}
+
+function triggerSendReminder(record, refresh) {
+  confirmTitle.value = 'Gửi cảnh báo học phí?'
+  confirmMsg.value = `Hệ thống sẽ gửi email cảnh báo học phí tới học viên ${record.studentNameSnapshot || ''}.`
+  confirmActionCallback = async () => {
+    await tuitionApi.sendReminder(record.id)
+    message.success('Đã gửi cảnh báo học phí')
+    refresh()
+  }
+  confirmOpen.value = true
 }
 
 function triggerMarkOverdue(id, refresh) {
@@ -406,6 +608,19 @@ async function scanOverdueInvoices() {
     message.error(error.message || 'Không thể quét hóa đơn quá hạn')
   } finally {
     scanLoading.value = false
+  }
+}
+
+async function sendUpcomingReminders() {
+  upcomingReminderLoading.value = true
+  try {
+    const result = await tuitionApi.sendUpcomingReminders(3)
+    message.success(`Đã gửi cảnh báo cho ${result.succeeded || 0} hóa đơn sắp đến hạn`)
+    await resourceView.value?.fetchItems?.()
+  } catch (error) {
+    message.error(error.message || 'Không thể gửi cảnh báo học phí sắp đến hạn')
+  } finally {
+    upcomingReminderLoading.value = false
   }
 }
 
@@ -445,3 +660,134 @@ async function loadDependencies() {
 
 onMounted(loadDependencies)
 </script>
+
+<style scoped>
+.tuition-student-cell {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: 10px;
+  cursor: default;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.tuition-student-cell:hover {
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+}
+
+.tuition-student-cell-avatar {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+:global(.tuition-student-popover .ant-popover-inner) {
+  padding: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+}
+
+.tuition-student-card {
+  width: 380px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.tuition-student-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+}
+
+.tuition-student-avatar {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.tuition-student-header h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.tuition-student-header p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.tuition-student-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px 16px 8px;
+}
+
+.tuition-student-grid div,
+.tuition-student-address,
+.tuition-student-footer div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tuition-student-grid span,
+.tuition-student-address span,
+.tuition-student-footer span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tuition-student-grid strong,
+.tuition-student-address strong,
+.tuition-student-footer strong {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.tuition-student-address {
+  padding: 8px 16px 14px;
+}
+
+.tuition-student-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+</style>
+

@@ -42,7 +42,7 @@ export const STATUS_LOCALES = {
   Excused:      { label: 'Có phép',      color: 'blue' },
   // Result
   Passed:       { label: 'Đạt',          color: 'green' },
-  Failed:       { label: 'Không đạt',    color: 'red' },
+  ResultFailed: { label: 'Không đạt',    color: 'red' },
   // Invoice / Payment
   Paid:         { label: 'Đã thanh toán', color: 'green' },
   Partial:      { label: 'Thanh toán một phần', color: 'amber' },

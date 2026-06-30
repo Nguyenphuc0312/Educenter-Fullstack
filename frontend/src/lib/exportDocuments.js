@@ -93,7 +93,7 @@ export function downloadExcelReport({
           ${columns.map((column) => `<td>${escapeHtml(column.value(row))}</td>`).join('')}
         </tr>
       `).join('')
-    : `<tr><td colspan="${columns.length + 1}" class="empty">Khong co du lieu</td></tr>`
+    : `<tr><td colspan="${columns.length + 1}" class="empty">Không có dữ liệu</td></tr>`
 
   const html = `<!doctype html>
 <html lang="vi">
@@ -198,12 +198,12 @@ export function downloadExcelReport({
     <section class="hero">
       <div class="brand">EduCenter</div>
       <h1>${escapeHtml(title)}</h1>
-      <p class="subtitle">${escapeHtml(subtitle || 'Bang Excel duoc tao tu du lieu hien tai tren he thong.')}</p>
+      <p class="subtitle">${escapeHtml(subtitle || 'Bảng Excel được tạo từ dữ liệu hiện tại trên hệ thống.')}</p>
     </section>
     <section class="meta">
-      <div class="meta-card"><span class="label">Nguoi xuat</span><span class="value">${escapeHtml(user?.fullName || user?.username || 'Hoc vien')}</span></div>
-      <div class="meta-card"><span class="label">Tai khoan</span><span class="value">${escapeHtml(user?.username || user?.email || '-')}</span></div>
-      <div class="meta-card"><span class="label">Ngay xuat</span><span class="value">${generatedAt.toLocaleString('vi-VN')}</span></div>
+      <div class="meta-card"><span class="label">Người xuất</span><span class="value">${escapeHtml(user?.fullName || user?.username || 'Học viên')}</span></div>
+      <div class="meta-card"><span class="label">Tài khoản</span><span class="value">${escapeHtml(user?.username || user?.email || '-')}</span></div>
+      <div class="meta-card"><span class="label">Ngày xuất</span><span class="value">${generatedAt.toLocaleString('vi-VN')}</span></div>
     </section>
     <section class="content">
       ${summary.length ? `<div class="summary">${summary.map((item) => `
@@ -215,7 +215,7 @@ export function downloadExcelReport({
       </table>
       ${notes.length ? `<div class="notes">${notes.map((note) => `<div>${escapeHtml(note)}</div>`).join('')}</div>` : ''}
       <div class="footer">
-        <span>EduCenter - He thong quan ly trung tam dao tao</span>
+        <span>EduCenter - Hệ thống quản lý trung tâm đào tạo</span>
         <span>${escapeHtml(filename)}</span>
       </div>
     </section>
@@ -228,6 +228,212 @@ export function downloadExcelReport({
 
 export function downloadReportHtml(args) {
   return downloadExcelReport(args)
+}
+
+export function openPdfReport({
+  title,
+  subtitle,
+  filename,
+  user,
+  summary = [],
+  columns,
+  rows,
+  notes = [],
+}) {
+  const generatedAt = new Date()
+  const tableRows = rows.length
+    ? rows.map((row, index) => `
+        <tr>
+          <td class="index">${index + 1}</td>
+          ${columns.map((column) => `<td>${escapeHtml(column.value(row))}</td>`).join('')}
+        </tr>
+      `).join('')
+    : `<tr><td colspan="${columns.length + 1}" class="empty">Không có dữ liệu</td></tr>`
+
+  const html = `<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, "Helvetica Neue", sans-serif;
+      color: #0f172a;
+      background: #f8fafc;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sheet {
+      max-width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      padding: 28px;
+      border: 1px solid #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      padding-bottom: 18px;
+      border-bottom: 3px solid #2563eb;
+    }
+    .brand { font-size: 13px; font-weight: 800; color: #2563eb; text-transform: uppercase; letter-spacing: .08em; }
+    h1 { margin: 8px 0 0; font-size: 26px; line-height: 1.25; }
+    .subtitle { margin: 8px 0 0; color: #475569; font-size: 13px; max-width: 620px; }
+    .stamp { text-align: right; color: #475569; font-size: 12px; line-height: 1.6; }
+    .meta, .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .summary { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
+    .box {
+      border: 1px solid #dbeafe;
+      background: #eff6ff;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .box.white { background: #fff; border-color: #e2e8f0; }
+    .label { display: block; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
+    .value { display: block; margin-top: 4px; font-size: 13px; font-weight: 800; color: #0f172a; word-break: break-word; }
+    .summary .value { font-size: 18px; color: #1d4ed8; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      border: 1px solid #cbd5e1;
+      font-size: 12px;
+    }
+    th {
+      background: #0f172a;
+      color: #fff;
+      text-align: left;
+      padding: 9px;
+      border: 1px solid #0f172a;
+    }
+    td {
+      padding: 9px;
+      border: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .index { width: 42px; text-align: center; color: #64748b; font-weight: 700; }
+    .empty { text-align: center; color: #64748b; padding: 28px; }
+    .notes {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border: 1px solid #fde68a;
+      background: #fffbeb;
+      color: #92400e;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .signatures {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 40px;
+      margin-top: 36px;
+      text-align: center;
+      font-size: 12px;
+      color: #334155;
+    }
+    .sign-space { height: 54px; }
+    .footer {
+      margin-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      color: #64748b;
+      font-size: 10px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 10px;
+    }
+    .print-actions {
+      position: sticky;
+      top: 0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 10px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .print-actions button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .primary { background: #2563eb; color: #fff; }
+    .secondary { background: #e2e8f0; color: #0f172a; }
+    @media print {
+      body { background: #fff; }
+      .print-actions { display: none; }
+      .sheet { border: 0; padding: 0; min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-actions">
+    <button class="secondary" onclick="window.close()">Đóng</button>
+    <button class="primary" onclick="window.print()">Lưu PDF / In</button>
+  </div>
+  <main class="sheet">
+    <section class="header">
+      <div>
+        <div class="brand">EduCenter</div>
+        <h1>${escapeHtml(title)}</h1>
+        <p class="subtitle">${escapeHtml(subtitle || 'Báo cáo được tạo từ hệ thống EduCenter.')}</p>
+      </div>
+      <div class="stamp">
+        <strong>Ngày xuất</strong><br />
+        ${generatedAt.toLocaleString('vi-VN')}<br />
+        <span>${escapeHtml(filename || '')}</span>
+      </div>
+    </section>
+    <section class="meta">
+      <div class="box white"><span class="label">Người xuất</span><span class="value">${escapeHtml(user?.fullName || user?.username || 'System')}</span></div>
+      <div class="box white"><span class="label">Tài khoản</span><span class="value">${escapeHtml(user?.username || user?.email || '-')}</span></div>
+      <div class="box white"><span class="label">Định dạng</span><span class="value">PDF / In</span></div>
+    </section>
+    ${summary.length ? `<section class="summary">${summary.map((item) => `
+      <div class="box"><span class="label">${escapeHtml(item.label)}</span><span class="value">${escapeHtml(item.value)}</span></div>
+    `).join('')}</section>` : ''}
+    <table>
+      <thead><tr><th>#</th>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    ${notes.length ? `<section class="notes">${notes.map((note) => `<div>${escapeHtml(note)}</div>`).join('')}</section>` : ''}
+    <section class="signatures">
+      <div><strong>Người lập</strong><div class="sign-space"></div><span>Ký, ghi rõ họ tên</span></div>
+      <div><strong>Xác nhận trung tâm</strong><div class="sign-space"></div><span>Ký, ghi rõ họ tên</span></div>
+    </section>
+    <section class="footer">
+      <span>EduCenter - Hệ thống quản lý trung tâm đào tạo</span>
+      <span>${escapeHtml(filename || '')}</span>
+    </section>
+  </main>
+  <script>
+    window.addEventListener('load', () => setTimeout(() => window.print(), 350));
+  </script>
+</body>
+</html>`
+
+  const printWindow = window.open('', '_blank', 'width=980,height=720')
+  if (!printWindow) {
+    const fallbackName = String(filename || 'educenter-report.html').replace(/\.pdf$/i, '.html')
+    downloadBlob(html, fallbackName, 'text/html;charset=utf-8')
+    return
+  }
+  printWindow.document.open()
+  printWindow.document.write(html)
+  printWindow.document.close()
 }
 
 export function reportFilename(title, extension = 'xls') {

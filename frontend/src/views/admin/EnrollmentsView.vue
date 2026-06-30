@@ -12,9 +12,7 @@
       :filter-fn="customFilter"
       @reset="resetCustomFilters"
     >
-      <!-- Custom filters slot -->
       <template #filters>
-        <!-- Course Selector -->
         <a-select
           v-model:value="filterCourseId"
           placeholder="Khóa học"
@@ -28,7 +26,6 @@
           </a-select-option>
         </a-select>
 
-        <!-- Class Selector -->
         <a-select
           v-model:value="filterClassId"
           placeholder="Lớp học"
@@ -36,13 +33,13 @@
           size="small"
           class="w-40"
           :loading="loadingClasses"
+          :disabled="!filterCourseId"
         >
-          <a-select-option v-for="cls in classes" :key="cls.id" :value="cls.id">
+          <a-select-option v-for="cls in filteredFilterClasses" :key="cls.id" :value="cls.id">
             {{ cls.className || cls.name }}
           </a-select-option>
         </a-select>
 
-        <!-- Status filter -->
         <a-select
           v-model:value="filterStatusValue"
           placeholder="Trạng thái"
@@ -57,7 +54,6 @@
           <a-select-option :value="5">Đã hủy</a-select-option>
         </a-select>
 
-        <!-- Enrolled Date Range Picker -->
         <a-range-picker
           v-model:value="filterDateRange"
           value-format="YYYY-MM-DD"
@@ -67,7 +63,6 @@
         />
       </template>
 
-      <!-- Custom Bulk Actions -->
       <template #bulkActions="{ selectedRowKeys, refresh }">
         <a-button
           size="small"
@@ -90,7 +85,6 @@
         </a-button>
       </template>
 
-      <!-- Row Actions Dropdown items -->
       <template #rowActions="{ record, refresh }">
         <a-menu-item
           v-if="enrollmentStatusValue(record.status) === 1"
@@ -115,21 +109,70 @@
         </a-menu-item>
       </template>
 
-      <!-- Custom cells -->
       <template #bodyCell="{ column, record }">
-        <!-- Student name cell with code -->
         <template v-if="column.key === 'studentNameSnapshot'">
-          <div class="leading-tight">
-            <div class="text-xs font-semibold text-base-primary truncate max-w-[160px]" :title="record.studentNameSnapshot">
-              {{ record.studentNameSnapshot || '—' }}
+          <a-popover trigger="hover" placement="rightTop" overlay-class-name="enrollment-student-popover">
+            <template #content>
+              <div class="enrollment-student-card">
+                <div class="enrollment-student-header">
+                  <div
+                    class="enrollment-student-avatar"
+                    :style="{ background: avatarColor(studentDisplayName(record)) }"
+                  >
+                    {{ initials(studentDisplayName(record)) }}
+                  </div>
+                  <div class="min-w-0">
+                    <h3>{{ studentDisplayName(record) || 'Học viên' }}</h3>
+                    <p>{{ studentDisplayCode(record) || 'Chưa có mã học viên' }}</p>
+                  </div>
+                </div>
+
+                <div class="enrollment-student-grid">
+                  <div><span>Email</span><strong>{{ studentDetail(record).email || '—' }}</strong></div>
+                  <div><span>Điện thoại</span><strong>{{ studentDetail(record).phone || '—' }}</strong></div>
+                  <div><span>Ngày sinh</span><strong>{{ formatDate(studentDetail(record).dateOfBirth) }}</strong></div>
+                  <div><span>Tuổi</span><strong>{{ computeAge(studentDetail(record).dateOfBirth) }}</strong></div>
+                  <div><span>Giới tính</span><strong>{{ genderLabel(studentDetail(record).gender) }}</strong></div>
+                  <div><span>Trạng thái</span><strong>{{ studentStatusLabel(studentDetail(record).status) }}</strong></div>
+                </div>
+
+                <div class="enrollment-student-address">
+                  <span>Địa chỉ</span>
+                  <strong>{{ studentDetail(record).address || 'Chưa cập nhật' }}</strong>
+                </div>
+
+                <div class="enrollment-student-footer">
+                  <div>
+                    <span>Khóa học</span>
+                    <strong>{{ record.courseNameSnapshot || '—' }}</strong>
+                  </div>
+                  <div>
+                    <span>Lớp</span>
+                    <strong>{{ record.classNameSnapshot || '—' }}</strong>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <div class="enrollment-student-cell">
+              <div
+                class="enrollment-student-cell-avatar"
+                :style="{ background: avatarColor(studentDisplayName(record)) }"
+              >
+                {{ initials(studentDisplayName(record)) }}
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-base-primary truncate max-w-[160px]" :title="studentDisplayName(record)">
+                  {{ studentDisplayName(record) || '—' }}
+                </div>
+                <div v-if="studentDisplayCode(record)" class="text-[10px] text-base-muted font-mono">
+                  {{ studentDisplayCode(record) }}
+                </div>
+              </div>
             </div>
-            <div v-if="record.studentCodeSnapshot" class="text-[10px] text-base-muted font-mono">
-              {{ record.studentCodeSnapshot }}
-            </div>
-          </div>
+          </a-popover>
         </template>
 
-        <!-- Course + class cell -->
         <template v-else-if="column.key === 'courseNameSnapshot'">
           <div class="leading-tight">
             <div class="text-xs text-base-primary truncate max-w-[160px]" :title="record.courseNameSnapshot">
@@ -141,14 +184,12 @@
           </div>
         </template>
 
-        <!-- Enrollment date -->
         <template v-else-if="column.key === 'enrolledAt'">
           <span class="text-xs text-base-secondary whitespace-nowrap">
             {{ formatDate(record.enrolledAt) }}
           </span>
         </template>
 
-        <!-- Note preview -->
         <template v-else-if="column.key === 'note'">
           <span
             v-if="record.note"
@@ -162,7 +203,6 @@
       </template>
     </AdminResourceView>
 
-    <!-- Confirmation Modal Dialog -->
     <ConfirmActionModal
       v-model:open="confirmOpen"
       :title="confirmTitle"
@@ -175,7 +215,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import AdminResourceView from '@/components/admin/AdminResourceView.vue'
 import ConfirmActionModal from '@/components/admin/ConfirmActionModal.vue'
@@ -197,7 +237,6 @@ import {
 
 const statusOptions = toOptions(ENROLLMENT_STATUS, { 1: 'orange', 2: 'blue', 3: 'purple', 4: 'green', 5: 'red' })
 
-// Dynamic drop-down list states
 const courses = ref([])
 const classes = ref([])
 const students = ref([])
@@ -205,13 +244,16 @@ const loadingCourses = ref(false)
 const loadingClasses = ref(false)
 const loadingStudents = ref(false)
 
-// Custom filter variables
 const filterCourseId = ref(undefined)
 const filterClassId = ref(undefined)
 const filterStatusValue = ref(undefined)
 const filterDateRange = ref(null)
 
-// Confirmation Modal States
+const filteredFilterClasses = computed(() => {
+  if (!filterCourseId.value) return []
+  return classes.value.filter((cls) => String(cls.courseId) === String(filterCourseId.value))
+})
+
 const confirmOpen = ref(false)
 const confirmTitle = ref('')
 const confirmMsg = ref('')
@@ -227,32 +269,37 @@ const ENROLLMENT_STATUS_VALUE = {
   Cancelled: 5,
 }
 
-function enrollmentStatusValue(status) {
-  const numeric = Number(status)
-  if (Number.isInteger(numeric)) return numeric
-  return ENROLLMENT_STATUS_VALUE[status]
+const STUDENT_STATUS_LABEL = {
+  1: 'Hoạt động',
+  2: 'Không hoạt động',
+  3: 'Tạm dừng',
+  Active: 'Hoạt động',
+  Inactive: 'Không hoạt động',
+  Suspended: 'Tạm dừng',
 }
 
-// Table columns
+const GENDER_LABEL = {
+  0: 'Không rõ',
+  1: 'Nam',
+  2: 'Nữ',
+  3: 'Khác',
+  Unknown: 'Không rõ',
+  Male: 'Nam',
+  Female: 'Nữ',
+  Other: 'Khác',
+}
+
+const AVATAR_COLORS = [
+  '#4f46e5', '#7c3aed', '#db2777', '#0891b2',
+  '#059669', '#d97706', '#dc2626', '#65a30d',
+]
+
 const columns = [
   { title: 'Học viên', key: 'studentNameSnapshot', width: 200 },
   { title: 'Khóa học / Lớp', key: 'courseNameSnapshot', width: 200 },
   { title: 'Ngày ghi danh', key: 'enrolledAt', width: 140 },
   { title: 'Ghi chú', key: 'note', width: 160 },
   { title: 'Trạng thái', dataIndex: 'status', key: 'status', type: 'status', width: 140 },
-]
-
-// Form fields — clean, no raw IDs exposed in labels
-const legacyFields = [
-  { name: 'studentNameSnapshot', label: 'Tên học viên', required: true, default: '' },
-  { name: 'studentCodeSnapshot', label: 'Mã học viên', default: '' },
-  { name: 'studentId', label: 'ID Học viên', required: true, default: '' },
-  { name: 'courseNameSnapshot', label: 'Tên khóa học', required: true, default: '' },
-  { name: 'courseId', label: 'ID Khóa học', required: true, default: '' },
-  { name: 'classNameSnapshot', label: 'Tên lớp', default: '' },
-  { name: 'classId', label: 'ID Lớp học', default: '' },
-  { name: 'status', label: 'Trạng thái', type: 'select', options: statusOptions, default: 1 },
-  { name: 'note', label: 'Ghi chú', type: 'textarea', fullWidth: true, default: '' },
 ]
 
 const fields = computed(() => [
@@ -287,10 +334,14 @@ const fields = computed(() => [
     name: 'classId',
     label: 'Lớp học',
     type: 'select',
-    options: classOptions(classes.value),
+    options: (formState) => filteredClassOptions(formState.courseId),
     required: true,
     default: '',
-    placeholder: loadingClasses.value ? 'Đang tải lớp học...' : 'Chọn lớp học',
+    disabled: (formState) => !formState.courseId,
+    placeholder: (formState) => {
+      if (loadingClasses.value) return 'Đang tải lớp học...'
+      return formState.courseId ? 'Chọn lớp học' : 'Chọn khóa học trước'
+    },
     onChange: (_value, formState, { option }) => applyClassSnapshot(formState, option?.item, courses.value),
   },
   { name: 'studentNameSnapshot', label: 'Tên học viên', hidden: true, required: true, default: '' },
@@ -307,7 +358,12 @@ const formGroups = [
   { title: 'Trạng thái & Ghi chú', fields: ['status', 'note'] },
 ]
 
-// Custom filter checks
+function enrollmentStatusValue(status) {
+  const numeric = Number(status)
+  if (Number.isInteger(numeric)) return numeric
+  return ENROLLMENT_STATUS_VALUE[status]
+}
+
 function customFilter(item) {
   const matchCourse = !filterCourseId.value || item.courseId === filterCourseId.value
   const matchClass = !filterClassId.value || item.classId === filterClassId.value
@@ -335,7 +391,23 @@ function resetCustomFilters() {
   filterDateRange.value = null
 }
 
-// Confirmation helper triggers
+watch(filterCourseId, (courseId) => {
+  if (!courseId) {
+    filterClassId.value = undefined
+    return
+  }
+
+  const currentClass = classes.value.find((cls) => cls.id === filterClassId.value)
+  if (currentClass && String(currentClass.courseId) !== String(courseId)) {
+    filterClassId.value = undefined
+  }
+})
+
+function filteredClassOptions(courseId) {
+  if (!courseId) return []
+  return classOptions(classes.value.filter((cls) => String(cls.courseId) === String(courseId)))
+}
+
 function triggerConfirmOne(id, refresh) {
   confirmTitle.value = 'Xác nhận ghi danh?'
   confirmMsg.value = 'Học viên sẽ được chính thức xếp lớp và bắt đầu quá trình học tập.'
@@ -409,7 +481,6 @@ async function handleExecuteAction() {
   }
 }
 
-// Load filter dependencies
 async function loadFilterDependencies() {
   loadingCourses.value = true
   loadingClasses.value = true
@@ -418,18 +489,71 @@ async function loadFilterDependencies() {
     const [coursesRes, classesRes, studentsRes] = await Promise.all([
       courseApi.getAll(),
       classApi.getAll(),
-      studentApi.getAll()
+      studentApi.getAll(),
     ])
     courses.value = asList(coursesRes)
     classes.value = asList(classesRes)
     students.value = asList(studentsRes)
   } catch (error) {
-    // Fail silently
+    // Trang vẫn dùng được với snapshot ghi danh nếu danh mục liên kết tải lỗi.
   } finally {
     loadingCourses.value = false
     loadingClasses.value = false
     loadingStudents.value = false
   }
+}
+
+function studentDetail(record) {
+  const matched = students.value.find((student) => student.id === record.studentId)
+  return matched || {
+    fullName: record.studentNameSnapshot,
+    studentCode: record.studentCodeSnapshot,
+  }
+}
+
+function studentDisplayName(record) {
+  return studentDetail(record).fullName || record.studentNameSnapshot || ''
+}
+
+function studentDisplayCode(record) {
+  return studentDetail(record).studentCode || record.studentCodeSnapshot || ''
+}
+
+function initials(name) {
+  if (!name) return '?'
+  const parts = String(name).trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+}
+
+function avatarColor(name) {
+  if (!name) return AVATAR_COLORS[0]
+  let hash = 0
+  for (let i = 0; i < name.length; i += 1) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+function genderLabel(gender) {
+  return GENDER_LABEL[gender] || '—'
+}
+
+function studentStatusLabel(status) {
+  return STUDENT_STATUS_LABEL[status] || '—'
+}
+
+function ageFromDate(dob) {
+  if (!dob) return 0
+  const birth = new Date(dob)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthOffset = today.getMonth() - birth.getMonth()
+  if (monthOffset < 0 || (monthOffset === 0 && today.getDate() < birth.getDate())) age -= 1
+  return Math.max(age, 0)
+}
+
+function computeAge(dob) {
+  const age = ageFromDate(dob)
+  return age > 0 ? `${age} tuổi` : '—'
 }
 
 function formatDate(value) {
@@ -439,3 +563,133 @@ function formatDate(value) {
 
 onMounted(loadFilterDependencies)
 </script>
+
+<style scoped>
+.enrollment-student-cell {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: 10px;
+  cursor: default;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.enrollment-student-cell:hover {
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+}
+
+.enrollment-student-cell-avatar {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+:global(.enrollment-student-popover .ant-popover-inner) {
+  padding: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+}
+
+.enrollment-student-card {
+  width: 380px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.enrollment-student-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+}
+
+.enrollment-student-avatar {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.enrollment-student-header h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.enrollment-student-header p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.enrollment-student-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px 16px 8px;
+}
+
+.enrollment-student-grid div,
+.enrollment-student-address,
+.enrollment-student-footer div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.enrollment-student-grid span,
+.enrollment-student-address span,
+.enrollment-student-footer span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.enrollment-student-grid strong,
+.enrollment-student-address strong,
+.enrollment-student-footer strong {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.enrollment-student-address {
+  padding: 8px 16px 14px;
+}
+
+.enrollment-student-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+</style>

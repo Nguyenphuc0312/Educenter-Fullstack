@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using CourseScheduleService.Data;
 using System.Data;
 using System.Globalization;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 
 namespace CourseScheduleService.Services;
@@ -130,35 +132,35 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
 {
     public async Task<IReadOnlyList<ClassResponse>> GetAllAsync(CancellationToken cancellationToken)
     {
-        var rows = await classes.Query().OrderBy(x => x.ClassCode).ToListAsync(cancellationToken);
+        var rows = await classes.Query().Include(x => x.ClassTeachers).OrderBy(x => x.ClassCode).ToListAsync(cancellationToken);
         await NormalizeClassesAsync(rows, cancellationToken);
         return rows.Select(x => x.ToResponse()).ToList();
     }
 
     public async Task<ClassResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
-        var entity = await classes.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Class");
+        var entity = await classes.Query().Include(x => x.ClassTeachers).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Class");
         if (ApplyLifecycleStatus(entity, DateTime.UtcNow)) await classes.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();
     }
 
     public async Task<IReadOnlyList<ClassResponse>> ByCourseAsync(Guid courseId, CancellationToken cancellationToken)
     {
-        var rows = await classes.Query().Where(x => x.CourseId == courseId).ToListAsync(cancellationToken);
+        var rows = await classes.Query().Include(x => x.ClassTeachers).Where(x => x.CourseId == courseId).ToListAsync(cancellationToken);
         await NormalizeClassesAsync(rows, cancellationToken);
         return rows.Select(x => x.ToResponse()).ToList();
     }
 
     public async Task<IReadOnlyList<ClassResponse>> ByTeacherAsync(Guid teacherId, CancellationToken cancellationToken)
     {
-        var rows = await classes.Query().Where(x => x.TeacherId == teacherId).ToListAsync(cancellationToken);
+        var rows = await classes.Query().Include(x => x.ClassTeachers).Where(x => x.TeacherId == teacherId || x.ClassTeachers.Any(t => t.TeacherId == teacherId)).ToListAsync(cancellationToken);
         await NormalizeClassesAsync(rows, cancellationToken);
         return rows.Select(x => x.ToResponse()).ToList();
     }
 
     public async Task<IReadOnlyList<ClassResponse>> OpeningAsync(CancellationToken cancellationToken)
     {
-        var rows = await classes.Query().ToListAsync(cancellationToken);
+        var rows = await classes.Query().Include(x => x.ClassTeachers).ToListAsync(cancellationToken);
         await NormalizeClassesAsync(rows, cancellationToken);
         return rows.Where(x => x.Status == ClassStatus.Open).Select(x => x.ToResponse()).ToList();
     }
@@ -166,15 +168,20 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
     public async Task<ClassResponse> CreateAsync(CreateClassRequest request, CancellationToken cancellationToken)
     {
         var course = await courses.GetByIdAsync(request.CourseId, cancellationToken) ?? throw NotFound("Course");
-        var teacher = await teachers.GetByIdAsync(request.TeacherId, cancellationToken) ?? throw NotFound("Teacher");
+        var classTeachers = await ResolveClassTeachersAsync(request.TeacherIds, request.TeacherId, cancellationToken);
+        var teacher = classTeachers[0];
         ValidateCapacity(request.MaxStudents, request.CurrentStudents);
+        var room = await ResolveRoomAsync(request.RoomId, request.Room, cancellationToken);
+        ValidateRoomCapacity(request.MaxStudents, request.CurrentStudents, room.Capacity);
         var classCode = string.IsNullOrWhiteSpace(request.ClassCode) ? await GenerateClassCodeAsync(cancellationToken) : request.ClassCode.Trim().ToUpperInvariant();
         if (await classes.AnyAsync(x => x.ClassCode == classCode, cancellationToken)) throw Conflict("Class code already exists");
         var now = DateTime.UtcNow;
-        var entity = new Class { Id = Guid.NewGuid(), CourseId = course.Id, CourseNameSnapshot = course.Name, ClassCode = classCode, ClassName = request.ClassName, TeacherId = teacher.Id, TeacherNameSnapshot = teacher.FullName, Room = request.Room, MaxStudents = request.MaxStudents, CurrentStudents = request.CurrentStudents, StartDate = request.StartDate, EndDate = request.EndDate, LearningMode = request.LearningMode, Status = request.Status, CreatedAt = now, UpdatedAt = now };
+        var entity = new Class { Id = Guid.NewGuid(), CourseId = course.Id, CourseNameSnapshot = course.Name, ClassCode = classCode, ClassName = request.ClassName, TeacherId = teacher.Id, TeacherNameSnapshot = teacher.FullName, RoomId = room.Id, Room = room.Name, MaxStudents = request.MaxStudents, CurrentStudents = request.CurrentStudents, StartDate = request.StartDate, EndDate = request.EndDate, LearningMode = request.LearningMode, Status = request.Status, CreatedAt = now, UpdatedAt = now };
         ApplyLifecycleStatus(entity, now);
         await classes.AddAsync(entity, cancellationToken);
         await classes.SaveChangesAsync(cancellationToken);
+        await SyncClassTeachersAsync(entity.Id, classTeachers, cancellationToken);
+        entity.ClassTeachers = ToClassTeacherSnapshots(entity.Id, classTeachers);
         return entity.ToResponse();
     }
 
@@ -182,12 +189,26 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
     {
         var entity = await classes.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Class");
         var course = await courses.GetByIdAsync(request.CourseId, cancellationToken) ?? throw NotFound("Course");
-        var teacher = await teachers.GetByIdAsync(request.TeacherId, cancellationToken) ?? throw NotFound("Teacher");
+        var classTeachers = await ResolveClassTeachersAsync(request.TeacherIds, request.TeacherId, cancellationToken);
+        var teacher = classTeachers[0];
         ValidateCapacity(request.MaxStudents, request.CurrentStudents);
-        entity.CourseId = course.Id; entity.CourseNameSnapshot = course.Name; entity.ClassCode = request.ClassCode; entity.ClassName = request.ClassName; entity.TeacherId = teacher.Id; entity.TeacherNameSnapshot = teacher.FullName; entity.Room = request.Room; entity.MaxStudents = request.MaxStudents; entity.CurrentStudents = request.CurrentStudents; entity.StartDate = request.StartDate; entity.EndDate = request.EndDate; entity.LearningMode = request.LearningMode; entity.Status = request.Status; entity.UpdatedAt = DateTime.UtcNow;
+        var room = await ResolveRoomAsync(request.RoomId, request.Room, cancellationToken);
+        ValidateRoomCapacity(request.MaxStudents, request.CurrentStudents, room.Capacity);
+        await ValidateClassRoomSchedulesAsync(entity.Id, room.Name, cancellationToken);
+        entity.CourseId = course.Id; entity.CourseNameSnapshot = course.Name; entity.ClassCode = request.ClassCode; entity.ClassName = request.ClassName; entity.TeacherId = teacher.Id; entity.TeacherNameSnapshot = teacher.FullName; entity.RoomId = room.Id; entity.Room = room.Name; entity.MaxStudents = request.MaxStudents; entity.CurrentStudents = request.CurrentStudents; entity.StartDate = request.StartDate; entity.EndDate = request.EndDate; entity.LearningMode = request.LearningMode; entity.Status = request.Status; entity.UpdatedAt = DateTime.UtcNow;
         ApplyLifecycleStatus(entity, DateTime.UtcNow);
         classes.Update(entity);
+        var ownSchedules = await db.Schedules.Where(x => x.ClassId == entity.Id).ToListAsync(cancellationToken);
+        foreach (var schedule in ownSchedules)
+        {
+            schedule.Room = room.Name;
+            schedule.ClassNameSnapshot = entity.ClassName;
+            ApplyScheduleTeacher(schedule, classTeachers);
+            schedule.UpdatedAt = DateTime.UtcNow;
+        }
         await classes.SaveChangesAsync(cancellationToken);
+        await SyncClassTeachersAsync(entity.Id, classTeachers, cancellationToken);
+        entity.ClassTeachers = ToClassTeacherSnapshots(entity.Id, classTeachers);
         return entity.ToResponse();
     }
 
@@ -270,6 +291,72 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
         if (current > max) throw Conflict("CurrentStudents cannot exceed MaxStudents");
     }
 
+    private async Task<List<Teacher>> ResolveClassTeachersAsync(IReadOnlyList<Guid> requestedTeacherIds, Guid fallbackTeacherId, CancellationToken cancellationToken)
+    {
+        var ids = requestedTeacherIds.Where(x => x != Guid.Empty).Distinct().ToList();
+        if (ids.Count == 0 && fallbackTeacherId != Guid.Empty) ids.Add(fallbackTeacherId);
+        if (ids.Count == 0) throw new AppException("At least one teacher is required");
+
+        var rows = await teachers.Query().Where(x => ids.Contains(x.Id)).ToListAsync(cancellationToken);
+        if (rows.Count != ids.Count) throw NotFound("Teacher");
+
+        return ids.Select(id => rows.First(x => x.Id == id)).ToList();
+    }
+
+    private async Task SyncClassTeachersAsync(Guid classId, IReadOnlyList<Teacher> selectedTeachers, CancellationToken cancellationToken)
+    {
+        var existing = await db.ClassTeachers.Where(x => x.ClassId == classId).ToListAsync(cancellationToken);
+        db.ClassTeachers.RemoveRange(existing);
+        var now = DateTime.UtcNow;
+        for (var i = 0; i < selectedTeachers.Count; i++)
+        {
+            db.ClassTeachers.Add(new ClassTeacher
+            {
+                ClassId = classId,
+                TeacherId = selectedTeachers[i].Id,
+                TeacherNameSnapshot = selectedTeachers[i].FullName,
+                IsPrimary = i == 0,
+                SortOrder = i,
+                CreatedAt = now
+            });
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static List<ClassTeacher> ToClassTeacherSnapshots(Guid classId, IReadOnlyList<Teacher> selectedTeachers)
+    {
+        var now = DateTime.UtcNow;
+        return selectedTeachers.Select((teacher, index) => new ClassTeacher
+        {
+            ClassId = classId,
+            TeacherId = teacher.Id,
+            TeacherNameSnapshot = teacher.FullName,
+            IsPrimary = index == 0,
+            SortOrder = index,
+            CreatedAt = now
+        }).ToList();
+    }
+
+    private static void ApplyScheduleTeacher(Schedule schedule, IReadOnlyList<Teacher> classTeachers)
+    {
+        if (classTeachers.Count == 0) return;
+        var index = Math.Max(0, schedule.SessionNumber - 1) % classTeachers.Count;
+        var teacher = classTeachers[index];
+        schedule.AssignedTeacherId = teacher.Id;
+        schedule.AssignedTeacherNameSnapshot = teacher.FullName;
+        if (schedule.SubstituteTeacherId.HasValue && classTeachers.All(x => x.Id != schedule.SubstituteTeacherId.Value))
+        {
+            schedule.SubstituteTeacherId = null;
+            schedule.SubstituteTeacherNameSnapshot = null;
+        }
+    }
+
+    private static void ValidateRoomCapacity(int max, int current, int roomCapacity)
+    {
+        if (max > roomCapacity) throw Conflict("Sĩ số tối đa của lớp không được vượt quá sức chứa phòng học");
+        if (current > roomCapacity) throw Conflict("Sĩ số hiện tại không được vượt quá sức chứa phòng học");
+    }
+
     private async Task NormalizeClassesAsync(IReadOnlyList<Class> rows, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
@@ -301,6 +388,181 @@ public sealed class ClassManagementService(IRepository<Class> classes, IReposito
         var next = codes.Select(x => int.TryParse(x[stem.Length..], out var value) ? value : 0).DefaultIfEmpty().Max() + 1;
         return $"{stem}{next:00}";
     }
+
+    private async Task ValidateClassRoomSchedulesAsync(Guid classId, string roomName, CancellationToken cancellationToken)
+    {
+        var ownSchedules = await db.Schedules.Where(x => x.ClassId == classId).ToListAsync(cancellationToken);
+        foreach (var schedule in ownSchedules)
+        {
+            var hasConflict = await db.Schedules.AnyAsync(x =>
+                x.Id != schedule.Id
+                && x.ClassId != classId
+                && x.Room == roomName
+                && x.DayOfWeek == schedule.DayOfWeek
+                && schedule.StartTime < x.EndTime
+                && schedule.EndTime > x.StartTime,
+                cancellationToken);
+            if (hasConflict) throw Conflict("Phòng học đã có lớp khác trong cùng ngày và khung giờ");
+        }
+    }
+
+    private async Task<(Guid? Id, string Name, int Capacity)> ResolveRoomAsync(Guid? roomId, string roomText, CancellationToken cancellationToken)
+    {
+        if (roomId.HasValue)
+        {
+            var room = await db.Rooms.FirstOrDefaultAsync(x => x.Id == roomId.Value, cancellationToken) ?? throw NotFound("Room");
+            if (!room.IsActive) throw Conflict("Room is inactive");
+            return (room.Id, room.Name, room.Capacity);
+        }
+
+        var normalized = roomText.Trim();
+        if (string.IsNullOrWhiteSpace(normalized)) throw new AppException("Room is required");
+
+        var matched = await db.Rooms.FirstOrDefaultAsync(x => x.Name == normalized || x.Code == normalized, cancellationToken);
+        return matched is null ? (null, normalized, int.MaxValue) : (matched.Id, matched.Name, matched.Capacity);
+    }
+
+    private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
+    private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
+}
+
+public interface IRoomService
+{
+    Task<IReadOnlyList<RoomResponse>> GetAllAsync(CancellationToken cancellationToken);
+    Task<RoomResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<RoomDetailResponse> GetUsageAsync(Guid id, CancellationToken cancellationToken);
+    Task<RoomResponse> CreateAsync(CreateRoomRequest request, CancellationToken cancellationToken);
+    Task<RoomResponse> UpdateAsync(Guid id, UpdateRoomRequest request, CancellationToken cancellationToken);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken);
+}
+
+public sealed class RoomService(IRepository<Room> rooms, IRepository<Class> classes, CourseDbContext db) : IRoomService
+{
+    public async Task<IReadOnlyList<RoomResponse>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        var rows = await rooms.Query().Include(x => x.Classes).OrderBy(x => x.Code).ToListAsync(cancellationToken);
+        return rows.Select(x => x.ToResponse()).ToList();
+    }
+
+    public async Task<RoomResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        (await rooms.Query().Include(x => x.Classes).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Room")).ToResponse();
+
+    public async Task<RoomDetailResponse> GetUsageAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var room = await rooms.Query().Include(x => x.Classes).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Room");
+        var classRows = await db.Classes
+            .Include(x => x.Schedules)
+            .Where(x => x.RoomId == id)
+            .OrderBy(x => x.StartDate)
+            .ThenBy(x => x.ClassName)
+            .ToListAsync(cancellationToken);
+
+        var usage = classRows.Select(x => new RoomClassUsageResponse(
+            x.Id,
+            x.ClassCode,
+            x.ClassName,
+            x.TeacherNameSnapshot,
+            x.CurrentStudents,
+            x.MaxStudents,
+            x.StartDate,
+            x.EndDate,
+            x.Status,
+            x.Schedules
+                .OrderBy(s => s.DayOfWeek)
+                .ThenBy(s => s.StartTime)
+                .Select(s => new RoomScheduleUsageResponse(s.Id, s.DayOfWeek, s.StudyShift, s.StartTime, s.EndTime, s.Topic, s.Status))
+                .ToList()
+        )).ToList();
+
+        return new RoomDetailResponse(room.ToResponse(), usage);
+    }
+
+    public async Task<RoomResponse> CreateAsync(CreateRoomRequest request, CancellationToken cancellationToken)
+    {
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? await GenerateRoomCodeAsync(cancellationToken)
+            : NormalizeRoomCode(request.Code, request.Name);
+        var name = request.Name.Trim();
+        if (await rooms.AnyAsync(x => x.Code == code || x.Name == name, cancellationToken)) throw Conflict("Room code or name already exists");
+        var now = DateTime.UtcNow;
+        var entity = new Room { Id = Guid.NewGuid(), Code = code, Name = name, Capacity = request.Capacity, Note = request.Note, IsActive = request.IsActive, CreatedAt = now, UpdatedAt = now };
+        await rooms.AddAsync(entity, cancellationToken);
+        await rooms.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task<RoomResponse> UpdateAsync(Guid id, UpdateRoomRequest request, CancellationToken cancellationToken)
+    {
+        var entity = await rooms.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Room");
+        var code = string.IsNullOrWhiteSpace(request.Code) ? entity.Code : NormalizeRoomCode(request.Code, request.Name);
+        var name = request.Name.Trim();
+        if (await rooms.AnyAsync(x => x.Id != id && (x.Code == code || x.Name == name), cancellationToken)) throw Conflict("Room code or name already exists");
+        var largestLinkedClass = await classes.Query()
+            .Where(x => x.RoomId == id)
+            .Select(x => (int?)x.MaxStudents)
+            .MaxAsync(cancellationToken);
+        if (largestLinkedClass.HasValue && request.Capacity < largestLinkedClass.Value)
+        {
+            throw Conflict("Sức chứa phòng không được nhỏ hơn sĩ số tối đa của lớp đang sử dụng phòng");
+        }
+        entity.Code = code;
+        entity.Name = name;
+        entity.Capacity = request.Capacity;
+        entity.Note = request.Note;
+        entity.IsActive = request.IsActive;
+        entity.UpdatedAt = DateTime.UtcNow;
+        await rooms.SaveChangesAsync(cancellationToken);
+
+        var linkedClasses = await classes.Query().Where(x => x.RoomId == id).ToListAsync(cancellationToken);
+        if (linkedClasses.Count > 0)
+        {
+            foreach (var item in linkedClasses)
+            {
+                item.Room = entity.Name;
+                item.UpdatedAt = DateTime.UtcNow;
+            }
+            await classes.SaveChangesAsync(cancellationToken);
+        }
+
+        return entity.ToResponse();
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var entity = await rooms.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Room");
+        if (await classes.AnyAsync(x => x.RoomId == id, cancellationToken)) throw Conflict("Room is being used by classes");
+        rooms.Remove(entity);
+        await rooms.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string NormalizeRoomCode(string code, string name)
+    {
+        var source = string.IsNullOrWhiteSpace(code) ? name : code;
+        var normalized = source.Trim().ToUpperInvariant().Replace(" ", "");
+        return normalized.Length > 40 ? normalized[..40] : normalized;
+    }
+
+    private async Task<string> GenerateRoomCodeAsync(CancellationToken cancellationToken)
+    {
+        const string stem = "ROOM";
+        var codes = await rooms.Query()
+            .Where(x => x.Code.StartsWith(stem))
+            .Select(x => x.Code)
+            .ToListAsync(cancellationToken);
+        var next = codes
+            .Select(x => int.TryParse(x[stem.Length..], out var value) ? value : 0)
+            .DefaultIfEmpty()
+            .Max() + 1;
+        string code;
+        do
+        {
+            code = $"{stem}{next:000}";
+            next++;
+        } while (await rooms.AnyAsync(x => x.Code == code, cancellationToken));
+
+        return code;
+    }
+
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
 }
@@ -316,19 +578,20 @@ public interface IScheduleManagementService
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
-public sealed class ScheduleManagementService(IRepository<Schedule> schedules, IRepository<Class> classes) : IScheduleManagementService
+public sealed class ScheduleManagementService(IRepository<Schedule> schedules, IRepository<Class> classes, IRepository<Teacher> teachers) : IScheduleManagementService
 {
     public async Task<IReadOnlyList<ScheduleResponse>> GetAllAsync(CancellationToken cancellationToken) => await schedules.Query().Include(x => x.Class).OrderBy(x => x.SessionNumber).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
     public async Task<ScheduleResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken) => (await schedules.Query().Include(x => x.Class).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Schedule")).ToResponse();
     public async Task<IReadOnlyList<ScheduleResponse>> ByClassAsync(Guid classId, CancellationToken cancellationToken) => await schedules.Query().Include(x => x.Class).Where(x => x.ClassId == classId).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
-    public async Task<IReadOnlyList<ScheduleResponse>> ByTeacherAsync(Guid teacherId, CancellationToken cancellationToken) => await schedules.Query().Include(x => x.Class).Where(x => x.Class != null && x.Class.TeacherId == teacherId).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<ScheduleResponse>> ByTeacherAsync(Guid teacherId, CancellationToken cancellationToken) => await schedules.Query().Include(x => x.Class).Where(x => x.AssignedTeacherId == teacherId || x.SubstituteTeacherId == teacherId || (x.AssignedTeacherId == null && x.Class != null && x.Class.TeacherId == teacherId)).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
 
     public async Task<ScheduleResponse> CreateAsync(CreateScheduleRequest request, CancellationToken cancellationToken)
     {
-        var classEntity = await classes.GetByIdAsync(request.ClassId, cancellationToken) ?? throw NotFound("Class");
-        await ValidateNoConflict(Guid.Empty, request, cancellationToken);
+        var classEntity = await classes.Query().Include(x => x.ClassTeachers).FirstOrDefaultAsync(x => x.Id == request.ClassId, cancellationToken) ?? throw NotFound("Class");
+        await ValidateNoConflict(Guid.Empty, request, classEntity.Room, cancellationToken);
+        var assignedTeacher = await ResolveScheduleTeacherAsync(classEntity, request.AssignedTeacherId, request.SessionNumber, cancellationToken);
         var now = DateTime.UtcNow;
-        var entity = new Schedule { Id = Guid.NewGuid(), ClassId = classEntity.Id, ClassNameSnapshot = classEntity.ClassName, Class = classEntity, DayOfWeek = request.DayOfWeek, StudyShift = request.StudyShift, StartTime = request.StartTime, EndTime = request.EndTime, Room = request.Room, Topic = request.Topic, SessionNumber = request.SessionNumber, Status = request.Status, CreatedAt = now, UpdatedAt = now };
+        var entity = new Schedule { Id = Guid.NewGuid(), ClassId = classEntity.Id, ClassNameSnapshot = classEntity.ClassName, Class = classEntity, DayOfWeek = request.DayOfWeek, StudyShift = request.StudyShift, StartTime = request.StartTime, EndTime = request.EndTime, AssignedTeacherId = assignedTeacher.Id, AssignedTeacherNameSnapshot = assignedTeacher.FullName, Room = classEntity.Room, Topic = request.Topic, SessionNumber = request.SessionNumber, Status = request.Status, CreatedAt = now, UpdatedAt = now };
         await schedules.AddAsync(entity, cancellationToken);
         await schedules.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();
@@ -337,9 +600,10 @@ public sealed class ScheduleManagementService(IRepository<Schedule> schedules, I
     public async Task<ScheduleResponse> UpdateAsync(Guid id, UpdateScheduleRequest request, CancellationToken cancellationToken)
     {
         var entity = await schedules.GetByIdAsync(id, cancellationToken) ?? throw NotFound("Schedule");
-        var classEntity = await classes.GetByIdAsync(request.ClassId, cancellationToken) ?? throw NotFound("Class");
-        await ValidateNoConflict(id, request, cancellationToken);
-        entity.ClassId = classEntity.Id; entity.ClassNameSnapshot = classEntity.ClassName; entity.Class = classEntity; entity.DayOfWeek = request.DayOfWeek; entity.StudyShift = request.StudyShift; entity.StartTime = request.StartTime; entity.EndTime = request.EndTime; entity.Room = request.Room; entity.Topic = request.Topic; entity.SessionNumber = request.SessionNumber; entity.Status = request.Status; entity.UpdatedAt = DateTime.UtcNow;
+        var classEntity = await classes.Query().Include(x => x.ClassTeachers).FirstOrDefaultAsync(x => x.Id == request.ClassId, cancellationToken) ?? throw NotFound("Class");
+        await ValidateNoConflict(id, request, classEntity.Room, cancellationToken);
+        var assignedTeacher = await ResolveScheduleTeacherAsync(classEntity, request.AssignedTeacherId, request.SessionNumber, cancellationToken);
+        entity.ClassId = classEntity.Id; entity.ClassNameSnapshot = classEntity.ClassName; entity.Class = classEntity; entity.DayOfWeek = request.DayOfWeek; entity.StudyShift = request.StudyShift; entity.StartTime = request.StartTime; entity.EndTime = request.EndTime; entity.AssignedTeacherId = assignedTeacher.Id; entity.AssignedTeacherNameSnapshot = assignedTeacher.FullName; entity.Room = classEntity.Room; entity.Topic = request.Topic; entity.SessionNumber = request.SessionNumber; entity.Status = request.Status; entity.UpdatedAt = DateTime.UtcNow;
         await schedules.SaveChangesAsync(cancellationToken);
         return entity.ToResponse();
     }
@@ -351,13 +615,203 @@ public sealed class ScheduleManagementService(IRepository<Schedule> schedules, I
         await schedules.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task ValidateNoConflict(Guid id, CreateScheduleRequest request, CancellationToken cancellationToken)
+    private async Task ValidateNoConflict(Guid id, CreateScheduleRequest request, string roomName, CancellationToken cancellationToken)
     {
-        if (await schedules.Query().AnyAsync(x => x.Id != id && x.ClassId == request.ClassId && x.DayOfWeek == request.DayOfWeek && x.StartTime == request.StartTime && x.EndTime == request.EndTime, cancellationToken)) throw Conflict("Schedule overlaps in same class");
-        if (await schedules.Query().AnyAsync(x => x.Id != id && x.Room == request.Room && x.DayOfWeek == request.DayOfWeek && x.StartTime == request.StartTime && x.EndTime == request.EndTime, cancellationToken)) throw Conflict("Room already booked at this time");
+        if (request.EndTime <= request.StartTime) throw new AppException("Giờ kết thúc phải sau giờ bắt đầu");
+        if (await schedules.Query().AnyAsync(x =>
+            x.Id != id
+            && x.ClassId == request.ClassId
+            && x.DayOfWeek == request.DayOfWeek
+            && request.StartTime < x.EndTime
+            && request.EndTime > x.StartTime,
+            cancellationToken)) throw Conflict("Lớp học đã có lịch trong khung giờ này");
+        if (await schedules.Query().AnyAsync(x =>
+            x.Id != id
+            && x.Room == roomName
+            && x.DayOfWeek == request.DayOfWeek
+            && request.StartTime < x.EndTime
+            && request.EndTime > x.StartTime,
+            cancellationToken)) throw Conflict("Phòng học đã có lớp khác trong cùng ngày và khung giờ");
+    }
+
+    private async Task<Teacher> ResolveScheduleTeacherAsync(Class classEntity, Guid? assignedTeacherId, int sessionNumber, CancellationToken cancellationToken)
+    {
+        var classTeacherIds = classEntity.ClassTeachers.OrderBy(x => x.SortOrder).Select(x => x.TeacherId).ToList();
+        if (classTeacherIds.Count == 0) classTeacherIds.Add(classEntity.TeacherId);
+
+        var teacherId = assignedTeacherId ?? classTeacherIds[Math.Max(0, sessionNumber - 1) % classTeacherIds.Count];
+        if (!classTeacherIds.Contains(teacherId))
+        {
+            throw Conflict("Assigned teacher must belong to this class");
+        }
+
+        return await teachers.GetByIdAsync(teacherId, cancellationToken) ?? throw NotFound("Teacher");
     }
     private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
     private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
+}
+
+public interface ITeachingSubstitutionService
+{
+    Task<IReadOnlyList<TeachingSubstitutionResponse>> GetAllAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<TeachingSubstitutionResponse>> GetPendingAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<TeachingSubstitutionResponse>> ByTeacherAsync(Guid teacherId, CancellationToken cancellationToken);
+    Task<TeachingSubstitutionResponse> CreateAsync(CreateTeachingSubstitutionRequest request, CancellationToken cancellationToken);
+    Task<TeachingSubstitutionResponse> ApproveAsync(Guid id, ReviewTeachingSubstitutionRequest request, string? bearerToken, CancellationToken cancellationToken);
+    Task<TeachingSubstitutionResponse> RejectAsync(Guid id, ReviewTeachingSubstitutionRequest request, string? bearerToken, CancellationToken cancellationToken);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken);
+}
+
+public interface INotificationClient
+{
+    Task SendEmailAsync(string toEmail, string subject, string body, string? bearerToken, CancellationToken cancellationToken);
+}
+
+public sealed class NotificationClient(HttpClient httpClient) : INotificationClient
+{
+    private sealed record SendNotificationRequest(string ToEmail, string Subject, string Body);
+
+    public async Task SendEmailAsync(string toEmail, string subject, string body, string? bearerToken, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/notifications/email");
+        if (!string.IsNullOrWhiteSpace(bearerToken)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        request.Content = JsonContent.Create(new SendNotificationRequest(toEmail, subject, body));
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.IsSuccessStatusCode) return;
+        var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+        throw new AppException($"Cannot send notification. Payment service returned {(int)response.StatusCode}: {detail}", StatusCodes.Status502BadGateway);
+    }
+}
+
+public sealed class TeachingSubstitutionService(CourseDbContext db, IRepository<Teacher> teachers, INotificationClient notifications) : ITeachingSubstitutionService
+{
+    public async Task<IReadOnlyList<TeachingSubstitutionResponse>> GetAllAsync(CancellationToken cancellationToken) =>
+        await db.TeachingSubstitutionRequests.Include(x => x.Schedule).OrderByDescending(x => x.CreatedAt).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<TeachingSubstitutionResponse>> GetPendingAsync(CancellationToken cancellationToken) =>
+        await db.TeachingSubstitutionRequests.Include(x => x.Schedule).Where(x => x.Status == SubstituteRequestStatus.Pending).OrderBy(x => x.CreatedAt).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<TeachingSubstitutionResponse>> ByTeacherAsync(Guid teacherId, CancellationToken cancellationToken) =>
+        await db.TeachingSubstitutionRequests.Include(x => x.Schedule).Where(x => x.RequestingTeacherId == teacherId || x.SubstituteTeacherId == teacherId).OrderByDescending(x => x.CreatedAt).Select(x => x.ToResponse()).ToListAsync(cancellationToken);
+
+    public async Task<TeachingSubstitutionResponse> CreateAsync(CreateTeachingSubstitutionRequest request, CancellationToken cancellationToken)
+    {
+        var schedule = await db.Schedules.Include(x => x.Class).FirstOrDefaultAsync(x => x.Id == request.ScheduleId, cancellationToken) ?? throw NotFound("Schedule");
+        var requestingTeacher = await teachers.GetByIdAsync(request.RequestingTeacherId, cancellationToken) ?? throw NotFound("Requesting teacher");
+        var substituteTeacher = await teachers.GetByIdAsync(request.SubstituteTeacherId, cancellationToken) ?? throw NotFound("Substitute teacher");
+        if (request.RequestingTeacherId == request.SubstituteTeacherId) throw Conflict("Substitute teacher must be different");
+        if (await db.TeachingSubstitutionRequests.AnyAsync(x => x.ScheduleId == request.ScheduleId && x.Status == SubstituteRequestStatus.Pending, cancellationToken)) throw Conflict("This schedule already has a pending substitution request");
+        if (schedule.SubstituteTeacherId.HasValue) throw Conflict("This schedule already has an approved substitute teacher");
+
+        var now = DateTime.UtcNow;
+        var entity = new TeachingSubstitutionRequest
+        {
+            Id = Guid.NewGuid(),
+            ScheduleId = schedule.Id,
+            Schedule = schedule,
+            RequestingTeacherId = requestingTeacher.Id,
+            RequestingTeacherNameSnapshot = requestingTeacher.FullName,
+            SubstituteTeacherId = substituteTeacher.Id,
+            SubstituteTeacherNameSnapshot = substituteTeacher.FullName,
+            Reason = request.Reason,
+            Status = SubstituteRequestStatus.Pending,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.TeachingSubstitutionRequests.Add(entity);
+        await db.SaveChangesAsync(cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task<TeachingSubstitutionResponse> ApproveAsync(Guid id, ReviewTeachingSubstitutionRequest request, string? bearerToken, CancellationToken cancellationToken)
+    {
+        var entity = await db.TeachingSubstitutionRequests.Include(x => x.Schedule).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Substitution request");
+        if (entity.Status != SubstituteRequestStatus.Pending) throw Conflict("Only pending requests can be approved");
+        entity.Status = SubstituteRequestStatus.Approved;
+        entity.AdminNote = request.AdminNote;
+        entity.UpdatedAt = DateTime.UtcNow;
+        entity.Schedule!.SubstituteTeacherId = entity.SubstituteTeacherId;
+        entity.Schedule.SubstituteTeacherNameSnapshot = entity.SubstituteTeacherNameSnapshot;
+        entity.Schedule.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        await TryNotifyReviewAsync(entity, true, bearerToken, cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task<TeachingSubstitutionResponse> RejectAsync(Guid id, ReviewTeachingSubstitutionRequest request, string? bearerToken, CancellationToken cancellationToken)
+    {
+        var entity = await db.TeachingSubstitutionRequests.Include(x => x.Schedule).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Substitution request");
+        if (entity.Status != SubstituteRequestStatus.Pending) throw Conflict("Only pending requests can be rejected");
+        entity.Status = SubstituteRequestStatus.Rejected;
+        entity.AdminNote = request.AdminNote;
+        entity.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        await TryNotifyReviewAsync(entity, false, bearerToken, cancellationToken);
+        return entity.ToResponse();
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var entity = await db.TeachingSubstitutionRequests.Include(x => x.Schedule).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw NotFound("Substitution request");
+        if (entity.Status == SubstituteRequestStatus.Approved && entity.Schedule is not null && entity.Schedule.SubstituteTeacherId == entity.SubstituteTeacherId)
+        {
+            entity.Schedule.SubstituteTeacherId = null;
+            entity.Schedule.SubstituteTeacherNameSnapshot = null;
+            entity.Schedule.UpdatedAt = DateTime.UtcNow;
+        }
+
+        db.TeachingSubstitutionRequests.Remove(entity);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static AppException NotFound(string name) => new($"{name} not found", StatusCodes.Status404NotFound);
+    private static AppException Conflict(string message) => new(message, StatusCodes.Status409Conflict);
+    private async Task TryNotifyReviewAsync(TeachingSubstitutionRequest request, bool approved, string? bearerToken, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var teacherIds = new[] { request.RequestingTeacherId, request.SubstituteTeacherId }.Distinct().ToList();
+            var teacherEmails = await teachers.Query()
+                .Where(x => teacherIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.FullName, x.Email })
+                .ToListAsync(cancellationToken);
+
+            var statusText = approved ? "đã được duyệt" : "đã bị từ chối";
+            var subject = approved ? "EduCenter duyệt yêu cầu dạy thay" : "EduCenter từ chối yêu cầu dạy thay";
+            foreach (var teacher in teacherEmails.Where(x => !string.IsNullOrWhiteSpace(x.Email)))
+            {
+                await notifications.SendEmailAsync(
+                    teacher.Email,
+                    subject,
+                    $"""
+                    <p>Chào <strong>{teacher.FullName}</strong>,</p>
+                    <p>Yêu cầu dạy thay cho lớp <strong>{request.Schedule?.ClassNameSnapshot}</strong> {statusText}.</p>
+                    <p>Buổi học: <strong>{VietnameseDay(request.Schedule?.DayOfWeek)} {request.Schedule?.StartTime:HH\\:mm} - {request.Schedule?.EndTime:HH\\:mm}</strong>, phòng <strong>{request.Schedule?.Room}</strong>.</p>
+                    <p>Giảng viên xin nghỉ: <strong>{request.RequestingTeacherNameSnapshot}</strong>.</p>
+                    <p>Giảng viên dạy thay: <strong>{request.SubstituteTeacherNameSnapshot}</strong>.</p>
+                    {(string.IsNullOrWhiteSpace(request.AdminNote) ? string.Empty : $"<p>Ghi chú admin: {request.AdminNote}</p>")}
+                    """,
+                    bearerToken,
+                    cancellationToken);
+            }
+        }
+        catch
+        {
+            // Email notification must not rollback substitution review.
+        }
+    }
+
+    private static string VietnameseDay(DayOfWeek? day) => day switch
+    {
+        DayOfWeek.Monday => "Thứ 2",
+        DayOfWeek.Tuesday => "Thứ 3",
+        DayOfWeek.Wednesday => "Thứ 4",
+        DayOfWeek.Thursday => "Thứ 5",
+        DayOfWeek.Friday => "Thứ 6",
+        DayOfWeek.Saturday => "Thứ 7",
+        DayOfWeek.Sunday => "Chủ nhật",
+        _ => "Chưa rõ"
+    };
 }
 
 public interface ITeacherService

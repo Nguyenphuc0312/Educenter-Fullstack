@@ -2,6 +2,7 @@
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+frontend/.env.production
 
 # Backend
 backend/**/bin/
@@ -15,6 +16,22 @@ backend/logs/
 *.local
 *.pid
 run-logs/
+.runtime-logs/
+
+# Local build/deploy artifacts and backups
+.build-check/
+.deploy-*/
+.deploy-*.tgz
+.deploy-run-*.sh
+.frontend-*.tgz
+.frontend-backup-*/
+.frontend-source-sync-*/
+.tmp-build*/
+local-backups/
+.keys/
+*.bak
+start-all-detached.vbs
+start-*-persistent.cmd
 
 # OS / IDE
 .DS_Store

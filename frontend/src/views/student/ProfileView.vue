@@ -285,6 +285,7 @@ const editForm = ref({
   gender: 'Male',
   address: ''
 })
+const PHONE_PATTERN = /^0\d{9}$/
 
 function openEditModal() {
   if (!student.value) return
@@ -302,13 +303,17 @@ function openEditModal() {
 }
 
 async function saveProfile() {
+  if (editForm.value.phone && !PHONE_PATTERN.test(String(editForm.value.phone).trim())) {
+    message.error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.')
+    return
+  }
   isSaving.value = true
   try {
     // Chuẩn bị Payload
     const payload = {
       ...student.value, // Giữ lại ID và các trường ẩn
       fullName: editForm.value.fullName,
-      phone: editForm.value.phone,
+      phone: String(editForm.value.phone || '').trim(),
       dateOfBirth: editForm.value.dateOfBirth ? new Date(editForm.value.dateOfBirth).toISOString() : null,
       gender: editForm.value.gender,
       address: editForm.value.address

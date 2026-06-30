@@ -17,6 +17,13 @@ public sealed class AttendanceController(IAttendanceService service) : Controlle
     public async Task<IActionResult> CreateSession(CreateAttendanceSessionRequest request, CancellationToken ct) => Ok(ApiResponse<AttendanceSessionResponse>.Ok(await service.CreateSessionAsync(request, ct), "Created"));
     [HttpPut("api/attendance-sessions/{id:guid}/lock")]
     public async Task<IActionResult> Lock(Guid id, CancellationToken ct) => Ok(ApiResponse<AttendanceSessionResponse>.Ok(await service.LockSessionAsync(id, ct)));
+    [HttpDelete("api/attendance-sessions/{id:guid}")]
+    public async Task<IActionResult> DeleteSession(Guid id, [FromQuery] bool force, CancellationToken ct)
+    {
+        if (force && !User.IsInRole("Admin")) return Forbid();
+        await service.DeleteSessionAsync(id, force, ct);
+        return Ok(ApiResponse<object>.Ok(null, "Deleted"));
+    }
     [HttpGet("api/attendance-records/by-session/{sessionId:guid}")]
     public async Task<IActionResult> RecordsBySession(Guid sessionId, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<AttendanceRecordResponse>>.Ok(await service.RecordsBySessionAsync(sessionId, ct)));
     [HttpGet("api/attendance-records/by-student/{studentId:guid}")]

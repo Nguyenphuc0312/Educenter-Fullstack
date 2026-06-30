@@ -276,7 +276,7 @@
                 :key="field.name"
                 :label="field.label"
                 :name="field.name"
-                :rules="field.required ? [{ required: true, message: `Vui lòng nhập ${field.label.toLowerCase()}` }] : []"
+                :rules="getFieldRules(field)"
                 :class="field.fullWidth ? 'md:col-span-2' : ''"
                 class="mb-0"
               >
@@ -284,7 +284,7 @@
                   v-if="field.type === 'textarea'"
                   v-model:value="formState[field.name]"
                   :rows="field.rows || 3"
-                  :placeholder="field.placeholder || field.label"
+                  :placeholder="resolveFieldPlaceholder(field)"
                   class="text-xs"
                   :disabled="resolveFieldDisabled(field)"
                 />
@@ -305,11 +305,13 @@
                 <a-select
                   v-else-if="field.type === 'select'"
                   v-model:value="formState[field.name]"
-                  :placeholder="field.placeholder || field.label"
+                  :placeholder="resolveFieldPlaceholder(field)"
                   class="text-xs w-full"
                   allow-clear
                   show-search
                   option-filter-prop="label"
+                  :mode="field.mode"
+                  :max-tag-count="field.maxTagCount ?? 2"
                   :disabled="resolveFieldDisabled(field)"
                   @change="handleFieldChange(field, $event)"
                 >
@@ -326,7 +328,7 @@
                 <a-input-password
                   v-else-if="field.type === 'password'"
                   v-model:value="formState[field.name]"
-                  :placeholder="field.placeholder || field.label"
+                  :placeholder="resolveFieldPlaceholder(field)"
                   class="text-xs"
                   :disabled="resolveFieldDisabled(field)"
                 />
@@ -334,7 +336,7 @@
                   v-else
                   v-model:value="formState[field.name]"
                   :type="field.type || 'text'"
-                  :placeholder="field.placeholder || field.label"
+                  :placeholder="resolveFieldPlaceholder(field)"
                   class="text-xs"
                   :disabled="resolveFieldDisabled(field)"
                 />
@@ -658,6 +660,9 @@ function resetForm(record = null) {
 
 function normalizeSelectValue(field, value) {
   if (field.type !== 'select' || value === null || value === undefined) return value
+  if (field.mode === 'multiple') {
+    return Array.isArray(value) ? value : []
+  }
   const options = resolveFieldOptions(field)
   if (options.some((option) => option.value === value)) return value
   const englishEnumMap = {
@@ -697,6 +702,19 @@ function resolveFieldOptions(field) {
 
 function resolveFieldDisabled(field) {
   return typeof field.disabled === 'function' ? field.disabled(formState, editingRecord.value) : !!field.disabled
+}
+
+function resolveFieldPlaceholder(field) {
+  return typeof field.placeholder === 'function'
+    ? field.placeholder(formState, editingRecord.value)
+    : field.placeholder || field.label
+}
+
+function getFieldRules(field) {
+  const rules = []
+  if (field.required) rules.push({ required: true, message: `Vui lòng nhập ${String(field.label || '').toLowerCase()}` })
+  if (Array.isArray(field.rules)) rules.push(...field.rules)
+  return rules
 }
 
 function handleFieldChange(field, value) {

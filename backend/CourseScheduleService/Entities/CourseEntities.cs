@@ -37,6 +37,7 @@ public sealed class Class
     [MaxLength(200)] public string ClassName { get; set; } = string.Empty;
     public Guid TeacherId { get; set; }
     [MaxLength(200)] public string TeacherNameSnapshot { get; set; } = string.Empty;
+    public Guid? RoomId { get; set; }
     [MaxLength(100)] public string Room { get; set; } = string.Empty;
     public int MaxStudents { get; set; }
     public int CurrentStudents { get; set; }
@@ -48,7 +49,34 @@ public sealed class Class
     public DateTime UpdatedAt { get; set; }
     public Course? Course { get; set; }
     public Teacher? Teacher { get; set; }
+    public Room? RoomRef { get; set; }
+    public List<ClassTeacher> ClassTeachers { get; set; } = [];
     public List<Schedule> Schedules { get; set; } = [];
+}
+
+public sealed class ClassTeacher
+{
+    public Guid ClassId { get; set; }
+    public Guid TeacherId { get; set; }
+    [MaxLength(200)] public string TeacherNameSnapshot { get; set; } = string.Empty;
+    public bool IsPrimary { get; set; }
+    public int SortOrder { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public Class? Class { get; set; }
+    public Teacher? Teacher { get; set; }
+}
+
+public sealed class Room
+{
+    public Guid Id { get; set; }
+    [MaxLength(40)] public string Code { get; set; } = string.Empty;
+    [MaxLength(100)] public string Name { get; set; } = string.Empty;
+    public int Capacity { get; set; }
+    [MaxLength(500)] public string? Note { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public List<Class> Classes { get; set; } = [];
 }
 
 public sealed class ClassSeatReservation
@@ -67,6 +95,10 @@ public sealed class Schedule
     public StudyShift StudyShift { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
+    public Guid? AssignedTeacherId { get; set; }
+    [MaxLength(200)] public string? AssignedTeacherNameSnapshot { get; set; }
+    public Guid? SubstituteTeacherId { get; set; }
+    [MaxLength(200)] public string? SubstituteTeacherNameSnapshot { get; set; }
     [MaxLength(100)] public string Room { get; set; } = string.Empty;
     [MaxLength(250)] public string Topic { get; set; } = string.Empty;
     public int SessionNumber { get; set; }
@@ -74,6 +106,27 @@ public sealed class Schedule
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public Class? Class { get; set; }
+    public Teacher? AssignedTeacher { get; set; }
+    public Teacher? SubstituteTeacher { get; set; }
+    public List<TeachingSubstitutionRequest> SubstituteRequests { get; set; } = [];
+}
+
+public sealed class TeachingSubstitutionRequest
+{
+    public Guid Id { get; set; }
+    public Guid ScheduleId { get; set; }
+    public Guid RequestingTeacherId { get; set; }
+    [MaxLength(200)] public string RequestingTeacherNameSnapshot { get; set; } = string.Empty;
+    public Guid SubstituteTeacherId { get; set; }
+    [MaxLength(200)] public string SubstituteTeacherNameSnapshot { get; set; } = string.Empty;
+    [MaxLength(500)] public string? Reason { get; set; }
+    public SubstituteRequestStatus Status { get; set; }
+    [MaxLength(500)] public string? AdminNote { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public Schedule? Schedule { get; set; }
+    public Teacher? RequestingTeacher { get; set; }
+    public Teacher? SubstituteTeacher { get; set; }
 }
 
 public sealed class Teacher

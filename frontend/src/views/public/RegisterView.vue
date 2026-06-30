@@ -1,6 +1,8 @@
 <template>
-  <div class="flex items-center justify-center min-h-[90vh] px-4 py-12">
-    <div class="w-full max-w-md bg-card-base border border-base rounded-3xl p-8 shadow-xl animate-fade-in">
+  <div class="relative flex items-center justify-center min-h-[90vh] px-4 py-12 overflow-hidden">
+    <div class="absolute top-1/4 left-1/4 w-80 h-80 rounded-full bg-blue-500/10 dark:bg-blue-500/5 blur-3xl pointer-events-none animate-float-slow"></div>
+    <div class="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-purple-500/10 dark:bg-purple-500/5 blur-3xl pointer-events-none animate-float-slower"></div>
+    <div class="w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-8 shadow-2xl animate-fade-in relative z-10">
       <div class="flex flex-col items-center mb-8">
         <div class="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white mb-4 shadow-lg shadow-blue-500/10">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -116,7 +118,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { authApi } from '../../api/authApi'
+import { authApi } from "@/api/authApi"
 import { message } from 'ant-design-vue'
 
 const router = useRouter()
@@ -132,6 +134,7 @@ const formData = reactive({
   email: '',
   phone: '',
 })
+const PHONE_PATTERN = /^0\d{9}$/
 
 async function handleSubmit() {
   const { username, password, confirmPassword, fullName, email, phone } = formData
@@ -146,11 +149,16 @@ async function handleSubmit() {
     return
   }
 
+  if (phone && !PHONE_PATTERN.test(String(phone).trim())) {
+    errorMsg.value = 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.'
+    return
+  }
+
   errorMsg.value = ''
   isLoading.value = true
 
   try {
-    await authApi.register({ username, password, fullName, email, phone, role: 'Student' })
+    await authApi.register({ username, password, fullName, email, phone: String(phone || '').trim(), role: 'Student' })
     message.success('Đăng ký tài khoản học viên thành công! Vui lòng đăng nhập.')
     router.push('/login')
   } catch (err) {

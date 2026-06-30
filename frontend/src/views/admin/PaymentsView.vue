@@ -169,7 +169,7 @@ const columns = [
   { title: 'Phương thức', key: 'method', width: 150 },
   { title: 'Ngày thanh toán', key: 'paymentDate', width: 140, sorter: (a, b) => new Date(a.paymentDate || 0) - new Date(b.paymentDate || 0) },
   { title: 'Người tạo', dataIndex: 'createdBy', key: 'createdBy', width: 140, ellipsis: true },
-  { title: 'Trạng thái', dataIndex: 'status', key: 'status', type: 'status', width: 130 },
+  { title: 'Trạng thái', dataIndex: 'status', key: 'status', type: 'status', width: 160 },
 ]
 
 // Form fields

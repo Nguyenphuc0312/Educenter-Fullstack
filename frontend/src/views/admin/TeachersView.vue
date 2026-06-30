@@ -122,6 +122,15 @@ const statusOptions = toOptions(TEACHER_STATUS, { 0: 'green', 1: 'default' })
 const filterSpecialization = ref(undefined)
 const filterStatusValue = ref(undefined)
 const filterExpRange = ref(undefined)
+const phoneRules = [
+  {
+    validator: async (_rule, value) => {
+      const phone = String(value || '').trim()
+      if (!phone || /^0\d{9}$/.test(phone)) return
+      throw new Error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0')
+    }
+  }
+]
 
 const columns = [
   { title: 'Giảng viên', key: 'fullName', width: 240 },
@@ -143,6 +152,8 @@ const fields = [
   { name: 'bio', label: 'Giới thiệu bản thân', type: 'textarea', fullWidth: true, default: '' },
   { name: 'status', label: 'Trạng thái', type: 'select', options: statusOptions, default: 0 },
 ]
+
+fields.find((field) => field.name === 'phone').rules = phoneRules
 
 // Sectioned form group configuration
 const formGroups = [

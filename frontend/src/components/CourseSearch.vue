@@ -31,7 +31,7 @@
             <button
               id="btn-search-courses"
               @click="handleSearch"
-              class="px-5 py-3 gradient-primary text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-all cursor-pointer transform hover:scale-[1.03] active:scale-[0.97] whitespace-nowrap"
+              class="px-5 py-3 gradient-primary text-white text-on-primary text-sm font-semibold rounded-xl hover:opacity-90 transition-all cursor-pointer transform hover:scale-[1.03] active:scale-[0.97] whitespace-nowrap"
             >
               Tìm khóa học
             </button>
@@ -45,7 +45,7 @@
               @click="setActiveCategory(null)"
               class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer"
               :class="activeCategory === null
-                ? 'gradient-primary text-white'
+                ? 'gradient-primary text-white text-on-primary'
                 : 'bg-section text-base-secondary border border-base hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400'"
             >
               Tất cả
@@ -57,7 +57,7 @@
               @click="setActiveCategory(cat.label === activeCategory ? null : cat.label)"
               class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer transform active:scale-95"
               :class="activeCategory === cat.label
-                ? 'gradient-primary text-white'
+                ? 'gradient-primary text-white text-on-primary'
                 : 'bg-section text-base-secondary border border-base hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400'"
             >
               {{ cat.label }}

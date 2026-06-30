@@ -5,7 +5,7 @@
     class="relative flex items-center justify-center w-9 h-9 rounded-full border border-base bg-card-base text-base-secondary hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
   >
     <transition name="fade-rotate" mode="out-in">
-      <div :key="themeStore.isDark ? 'moon' : 'sun'">
+      <div :key="themeStore.isDark ? 'sun' : 'moon'" class="flex items-center justify-center">
         <!-- Sun Icon (shown in dark mode to switch to light) -->
         <svg v-if="themeStore.isDark" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun">
           <circle cx="12" cy="12" r="4"/>

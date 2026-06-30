@@ -243,6 +243,7 @@ const editForm = ref({
   phone: '',
   bio: ''
 })
+const PHONE_PATTERN = /^0\d{9}$/
 
 function openEditModal() {
   editForm.value = {
@@ -253,11 +254,15 @@ function openEditModal() {
 }
 
 async function saveProfile() {
+  if (editForm.value.phone && !PHONE_PATTERN.test(String(editForm.value.phone).trim())) {
+    message.error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.')
+    return
+  }
   isSaving.value = true
   try {
     const payload = {
       ...teacher.value,
-      phone: editForm.value.phone,
+      phone: String(editForm.value.phone || '').trim(),
       bio: editForm.value.bio
     }
     
