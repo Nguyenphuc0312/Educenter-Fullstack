@@ -13,6 +13,7 @@ Educenter-Fullstack-Package/
   scripts/
     setup-demo-database.ps1        Tao du lieu demo tren SQL Server local
     setup-demo-database-docker.ps1 Tao du lieu demo cho SQL Server Docker
+  database-snapshot/               Snapshot .bak cua database local chuan
   run-all-local.cmd                Chay toan bo he thong voi SQL Server local
   run-demo-local.cmd               Chay demo voi SQL Server Docker rieng
   stop-local.cmd                   Dung cac service local
@@ -72,6 +73,16 @@ notepad .env.local
 `run-all-local.cmd` va `run-demo-local.cmd` se tu nap file nay. Khong commit API key vao git.
 
 ## Cach tao du lieu demo
+
+### Cach 0: Restore snapshot database local chuan
+
+Thu muc `database-snapshot/` co san 3 file backup:
+
+- `CourseDB.bak`
+- `StudentDB.bak`
+- `PaymentDB.bak`
+
+Co the restore bang SQL Server Management Studio hoac xem huong dan trong `database-snapshot/README.md`.
 
 ### Cach 1: Tao du lieu tren SQL Server local
 
