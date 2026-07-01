@@ -28,6 +28,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
+call "%~dp0load-local-env.cmd"
+
 docker info >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Docker Desktop is not running.

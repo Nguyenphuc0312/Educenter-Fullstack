@@ -62,7 +62,14 @@ Neu muon dung tinh nang tro ly AI qua backend, dat bien moi truong:
 set EDUCENTER_AI_ROUTER_API_KEY=your_api_key_here
 ```
 
-Khong commit API key vao file `.env` hoac source code.
+Hoac tao file `.env.local` tu file mau `.env.local.example`:
+
+```bat
+copy .env.local.example .env.local
+notepad .env.local
+```
+
+`run-all-local.cmd` va `run-demo-local.cmd` se tu nap file nay. Khong commit API key vao git.
 
 ## Cach tao du lieu demo
 

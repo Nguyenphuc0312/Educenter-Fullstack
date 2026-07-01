@@ -22,6 +22,9 @@ if errorlevel 1 (
 )
 
 if not defined SQL_SERVER set "SQL_SERVER=localhost"
+call "%~dp0load-local-env.cmd"
+if not defined AiRouter__BaseUrl set "AiRouter__BaseUrl=https://openrouter.ai/api/v1/"
+if not defined AiRouter__Model set "AiRouter__Model=openai/gpt-4o-mini"
 
 if defined SQL_USER (
   if not defined SQL_PASSWORD (
@@ -72,7 +75,7 @@ echo.
 start "EduCenter CourseScheduleService :5001" cmd /k "set ASPNETCORE_ENVIRONMENT=Development&& set ASPNETCORE_URLS=http://127.0.0.1:5001&& set ConnectionStrings__CourseDB=%COURSE_DB%&& cd /d ""%~dp0backend\CourseScheduleService""&& dotnet run --no-launch-profile"
 timeout /t 3 /nobreak >nul
 
-start "EduCenter StudentAttendanceService :5002" cmd /k "set ASPNETCORE_ENVIRONMENT=Development&& set ASPNETCORE_URLS=http://127.0.0.1:5002&& set ConnectionStrings__StudentDB=%STUDENT_DB%&& cd /d ""%~dp0backend\StudentAttendanceService""&& dotnet run --no-launch-profile"
+start "EduCenter StudentAttendanceService :5002" cmd /k "set ASPNETCORE_ENVIRONMENT=Development&& set ASPNETCORE_URLS=http://127.0.0.1:5002&& set ConnectionStrings__StudentDB=%STUDENT_DB%&& set AiRouter__ApiKey=%AiRouter__ApiKey%&& set AiRouter__BaseUrl=%AiRouter__BaseUrl%&& set AiRouter__Model=%AiRouter__Model%&& cd /d ""%~dp0backend\StudentAttendanceService""&& dotnet run --no-launch-profile"
 timeout /t 3 /nobreak >nul
 
 start "EduCenter PaymentReportService :5003" cmd /k "set ASPNETCORE_ENVIRONMENT=Development&& set ASPNETCORE_URLS=http://127.0.0.1:5003&& set ConnectionStrings__PaymentDB=%PAYMENT_DB%&& cd /d ""%~dp0backend\PaymentReportService""&& dotnet run --no-launch-profile"

@@ -55,6 +55,9 @@ services:
       ConnectionStrings__StudentDB: "Server=student-db,1433;Database=StudentDB;User Id=sa;Password=EduCenter@123456;TrustServerCertificate=True;Encrypt=False"
       ServiceUrls__CourseSchedule: "http://course-service:5001"
       ServiceUrls__PaymentReport: "http://payment-service:5003"
+      AiRouter__BaseUrl: "${AiRouter__BaseUrl:-https://openrouter.ai/api/v1/}"
+      AiRouter__Model: "${AiRouter__Model:-openai/gpt-4o-mini}"
+      AiRouter__ApiKey: "${AiRouter__ApiKey:-}"
     ports:
       - "5002:5002"
     depends_on:
