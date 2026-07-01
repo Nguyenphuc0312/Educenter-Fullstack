@@ -1,22 +1,22 @@
-﻿<template>
+<template>
   <div class="space-y-6">
     <PageHeader 
-      title="Táº¡o tÃ i liá»‡u giáº£ng dáº¡y tá»± Ä‘á»™ng (AI)" 
-      subtitle="Sá»­ dá»¥ng Generative AI Ä‘á»ƒ táº¡o bá»™ cÃ¢u há»i tráº¯c nghiá»‡m (Quiz), Flashcards hoáº·c tÃ³m táº¯t bÃ i giáº£ng tá»« tÃ i liá»‡u gá»‘c."
+      title="Tạo tài liệu giảng dạy tự động (AI)" 
+      subtitle="Sử dụng Generative AI để tạo bộ câu hỏi trắc nghiệm (Quiz), Flashcards hoặc tóm tắt bài giảng từ tài liệu gốc."
     />
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Cáº¥u hÃ¬nh Ä‘áº§u vÃ o (Form) -->
+      <!-- Cấu hình đầu vào (Form) -->
       <div class="lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
           <span class="w-1.5 h-3.5 bg-blue-600 rounded-full"></span>
-          Cáº¥u hÃ¬nh tÃ i liá»‡u AI
+          Cấu hình tài liệu AI
         </h2>
 
         <div class="space-y-4">
-          <!-- Äá»‹nh dáº¡ng tÃ i liá»‡u -->
+          <!-- Định dạng tài liệu -->
           <div class="space-y-2">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">1. Loáº¡i tÃ i liá»‡u cáº§n táº¡o:</label>
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">1. Loại tài liệu cần tạo:</label>
             <div class="grid grid-cols-3 gap-2">
               <button 
                 v-for="type in materialTypes" 
@@ -34,43 +34,43 @@
             </div>
           </div>
 
-          <!-- MÃ´n há»c / Chá»§ Ä‘á» -->
+          <!-- Môn học / Chủ đề -->
           <div class="space-y-2">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">2. MÃ´n há»c / Chá»§ Ä‘á» chÃ­nh:</label>
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">2. Môn học / Chủ đề chính:</label>
             <a-input 
               v-model:value="topic" 
-              placeholder="VÃ­ dá»¥: Láº­p trÃ¬nh hÆ°á»›ng Ä‘á»‘i tÆ°á»£ng (OOP), React Hooks, v.v." 
+              placeholder="Ví dụ: Lập trình hướng đối tượng (OOP), React Hooks, v.v." 
               size="large"
               class="text-xs rounded-xl"
             />
           </div>
 
-          <!-- Má»©c Ä‘á»™ khÃ³ -->
+          <!-- Mức độ khó -->
           <div class="space-y-2">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">3. Má»©c Ä‘á»™ khÃ³:</label>
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">3. Mức độ khó:</label>
             <a-select v-model:value="difficulty" class="w-full custom-select" size="large">
-              <a-select-option value="easy">CÆ¡ báº£n (Easy)</a-select-option>
-              <a-select-option value="medium">Trung bÃ¬nh (Medium)</a-select-option>
-              <a-select-option value="hard">NÃ¢ng cao (Hard)</a-select-option>
+              <a-select-option value="easy">Cơ bản (Easy)</a-select-option>
+              <a-select-option value="medium">Trung bình (Medium)</a-select-option>
+              <a-select-option value="hard">Nâng cao (Hard)</a-select-option>
             </a-select>
           </div>
 
-          <!-- Ná»™i dung tÃ i liá»‡u gá»‘c -->
+          <!-- Nội dung tài liệu gốc -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">4. Ná»™i dung hoáº·c tÃ i liá»‡u gá»‘c:</label>
-              <span class="text-[10px] text-slate-400">{{ rawText.length }}/8000 kÃ½ tá»±</span>
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block">4. Nội dung hoặc tài liệu gốc:</label>
+              <span class="text-[10px] text-slate-400">{{ rawText.length }}/8000 ký tự</span>
             </div>
             <a-textarea 
               v-model:value="rawText" 
-              placeholder="DÃ¡n Ä‘á» cÆ°Æ¡ng, ghi chÃº bÃ i giáº£ng hoáº·c tÃ i liá»‡u Ä‘á»c cá»§a há»c viÃªn táº¡i Ä‘Ã¢y lÃ m cÄƒn cá»© cháº¥m vÃ  táº¡o..." 
+              placeholder="Dán đề cương, ghi chú bài giảng hoặc tài liệu đọc của học viên tại đây làm căn cứ chấm và tạo..." 
               :rows="8"
               class="text-xs rounded-xl custom-scrollbar"
               maxlength="8000"
             />
           </div>
 
-          <!-- Button Táº¡o -->
+          <!-- Button Tạo -->
           <button
             type="button"
             class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
@@ -78,41 +78,41 @@
             @click="generateMaterial"
           >
             <LoadingSpinner v-if="generating" size="sm" class="!text-white" />
-            <span v-else>ðŸ¤– Báº¯t Ä‘áº§u táº¡o báº±ng AI</span>
+            <span v-else>🤖 Bắt đầu tạo bằng AI</span>
           </button>
         </div>
       </div>
 
-      <!-- Khung hiá»ƒn thá»‹ Káº¿t quáº£ (Preview & Actions) -->
+      <!-- Khung hiển thị Kết quả (Preview & Actions) -->
       <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col min-h-[500px]">
         <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <span class="w-1.5 h-3.5 bg-emerald-500 rounded-full"></span>
-            Káº¿t quáº£ xem trÆ°á»›c tÃ i liá»‡u
+            Kết quả xem trước tài liệu
           </h2>
           <div v-if="resultContent" class="flex items-center gap-2">
-            <a-button size="small" class="rounded-lg text-xs" @click="copyResult">Sao chÃ©p Raw</a-button>
-            <a-button size="small" type="primary" class="bg-blue-600 text-white rounded-lg text-xs border-none" @click="downloadResult">Táº£i xuá»‘ng file</a-button>
+            <a-button size="small" class="rounded-lg text-xs" @click="copyResult">Sao chép Raw</a-button>
+            <a-button size="small" type="primary" class="bg-blue-600 text-white rounded-lg text-xs border-none" @click="downloadResult">Tải xuống file</a-button>
           </div>
         </div>
 
         <div class="flex-grow flex flex-col justify-center">
-          <!-- Tráº¡ng thÃ¡i chá» -->
+          <!-- Trạng thái chờ -->
           <div v-if="!resultContent && !generating" class="py-24 text-center flex flex-col items-center space-y-3">
             <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400">
               <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             </div>
-            <h3 class="text-sm font-bold text-slate-700 dark:text-slate-300">ChÆ°a cÃ³ tÃ i liá»‡u Ä‘Æ°á»£c táº¡o</h3>
-            <p class="text-xs text-slate-500 max-w-sm">Äiá»n cáº¥u hÃ¬nh á»Ÿ cá»™t bÃªn trÃ¡i vÃ  báº¥m táº¡o Ä‘á»ƒ nháº­n bá»™ tÃ i liá»‡u tá»« AI.</p>
+            <h3 class="text-sm font-bold text-slate-700 dark:text-slate-300">Chưa có tài liệu được tạo</h3>
+            <p class="text-xs text-slate-500 max-w-sm">Điền cấu hình ở cột bên trái và bấm tạo để nhận bộ tài liệu từ AI.</p>
           </div>
 
-          <!-- Tráº¡ng thÃ¡i Loading -->
+          <!-- Trạng thái Loading -->
           <div v-else-if="generating" class="py-24 text-center flex flex-col items-center space-y-4">
             <LoadingSpinner size="lg" />
-            <p class="text-xs text-slate-500 animate-pulse">AI Ä‘ang Ä‘á»c ná»™i dung gá»‘c vÃ  soáº¡n tháº£o tÃ i liá»‡u, vui lÃ²ng Ä‘á»£i giÃ¢y lÃ¡t...</p>
+            <p class="text-xs text-slate-500 animate-pulse">AI đang đọc nội dung gốc và soạn thảo tài liệu, vui lòng đợi giây lát...</p>
           </div>
 
-          <!-- Káº¿t quáº£: Bá»™ cÃ¢u há»i tráº¯c nghiá»‡m (Quiz) -->
+          <!-- Kết quả: Bộ câu hỏi trắc nghiệm (Quiz) -->
           <div v-else-if="selectedType === 'quiz' && quizData.length" class="space-y-4 flex-grow">
             <div 
               v-for="(q, index) in quizData" 
@@ -120,7 +120,7 @@
               class="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-2.5"
             >
               <div class="font-bold text-slate-850 dark:text-slate-200">
-                CÃ¢u {{ index + 1 }}: {{ q.question }}
+                Câu {{ index + 1 }}: {{ q.question }}
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                 <div 
@@ -137,9 +137,9 @@
                 </div>
               </div>
               
-              <!-- Giáº£i thÃ­ch -->
+              <!-- Giải thích -->
               <div v-if="showAnswers" class="p-2.5 rounded-lg bg-blue-50/40 dark:bg-blue-950/10 border border-blue-100/60 dark:border-blue-900/40 text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
-                <strong>Giáº£i thÃ­ch:</strong> {{ q.explanation }}
+                <strong>Giải thích:</strong> {{ q.explanation }}
               </div>
             </div>
 
@@ -149,31 +149,31 @@
                 class="bg-emerald-600 text-white rounded-lg h-9 font-bold border-none cursor-pointer" 
                 @click="showAnswers = !showAnswers"
               >
-                {{ showAnswers ? 'áº¨n Ä‘Ã¡p Ã¡n & giáº£i thÃ­ch' : 'Hiá»‡n Ä‘Ã¡p Ã¡n & giáº£i thÃ­ch' }}
+                {{ showAnswers ? 'Ẩn đáp án & giải thích' : 'Hiện đáp án & giải thích' }}
               </a-button>
             </div>
           </div>
 
-          <!-- Káº¿t quáº£: Flashcards -->
+          <!-- Kết quả: Flashcards -->
           <div v-else-if="selectedType === 'flashcard' && flashcardsData.length" class="space-y-6 flex-grow flex flex-col items-center justify-between py-6">
             <!-- Card View container -->
             <div class="w-full max-w-sm h-64 flashcard-container cursor-pointer" @click="isFlipped = !isFlipped">
               <div class="flashcard-inner relative w-full h-full text-center" :class="{ 'is-flipped': isFlipped }">
                 <!-- Front Side -->
                 <div class="flashcard-front absolute inset-0 bg-gradient-to-tr from-blue-500 to-indigo-600 text-white rounded-2xl p-6 shadow-lg flex flex-col justify-between items-center">
-                  <span class="text-[9px] uppercase tracking-widest font-black opacity-75">Flashcard {{ activeCardIndex + 1 }} / {{ flashcardsData.length }} (Máº·t trÆ°á»›c)</span>
+                  <span class="text-[9px] uppercase tracking-widest font-black opacity-75">Flashcard {{ activeCardIndex + 1 }} / {{ flashcardsData.length }} (Mặt trước)</span>
                   <div class="text-base font-bold text-center px-4">
                     {{ flashcardsData[activeCardIndex]?.front }}
                   </div>
-                  <span class="text-[10px] opacity-50 block mt-2">Báº¥m Ä‘á»ƒ láº­t máº·t xem Ä‘Ã¡p Ã¡n â†º</span>
+                  <span class="text-[10px] opacity-50 block mt-2">Bấm để lật mặt xem đáp án ↺</span>
                 </div>
                 <!-- Back Side -->
                 <div class="flashcard-back absolute inset-0 bg-emerald-600 text-white rounded-2xl p-6 shadow-lg flex flex-col justify-between items-center transform rotate-y-180">
-                  <span class="text-[9px] uppercase tracking-widest font-black opacity-75">ÄÃ¡p Ã¡n (Máº·t sau)</span>
+                  <span class="text-[9px] uppercase tracking-widest font-black opacity-75">Đáp án (Mặt sau)</span>
                   <div class="text-xs text-center px-2 leading-relaxed">
                     {{ flashcardsData[activeCardIndex]?.back }}
                   </div>
-                  <span class="text-[10px] opacity-50 block mt-2">Báº¥m Ä‘á»ƒ quay láº¡i máº·t trÆ°á»›c â†º</span>
+                  <span class="text-[10px] opacity-50 block mt-2">Bấm để quay lại mặt trước ↺</span>
                 </div>
               </div>
             </div>
@@ -185,7 +185,7 @@
                 :disabled="activeCardIndex === 0" 
                 @click="prevCard"
               >
-                BÃ i trÆ°á»›c
+                Bài trước
               </a-button>
               <span class="text-xs font-bold text-slate-500">{{ activeCardIndex + 1 }} / {{ flashcardsData.length }}</span>
               <a-button 
@@ -194,12 +194,12 @@
                 :disabled="activeCardIndex === flashcardsData.length - 1" 
                 @click="nextCard"
               >
-                BÃ i sau
+                Bài sau
               </a-button>
             </div>
           </div>
 
-          <!-- Káº¿t quáº£: TÃ³m táº¯t bÃ i giáº£ng (Markdown) -->
+          <!-- Kết quả: Tóm tắt bài giảng (Markdown) -->
           <div v-else-if="selectedType === 'summary' && resultContent" class="prose dark:prose-invert max-w-none text-xs leading-relaxed space-y-4 flex-grow p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 select-text overflow-y-auto max-h-[500px] custom-scrollbar">
             <div v-html="parsedSummaryMarkdown"></div>
           </div>
@@ -217,9 +217,9 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 import { aiApi } from '@/api/aiApi'
 
 const materialTypes = [
-  { value: 'quiz', label: 'Bá»™ cÃ¢u há»i Quiz', icon: 'ðŸ“' },
-  { value: 'flashcard', label: 'Flashcards', icon: 'ðŸŽ´' },
-  { value: 'summary', label: 'TÃ³m táº¯t bÃ i giáº£ng', icon: 'ðŸ“–' }
+  { value: 'quiz', label: 'Bộ câu hỏi Quiz', icon: '📝' },
+  { value: 'flashcard', label: 'Flashcards', icon: '🎴' },
+  { value: 'summary', label: 'Tóm tắt bài giảng', icon: '📖' }
 ]
 
 const selectedType = ref('quiz')
@@ -295,55 +295,55 @@ async function generateMaterial() {
   let systemPrompt = ''
   if (selectedType.value === 'quiz') {
     systemPrompt = `
-Báº¡n lÃ  chuyÃªn gia thiáº¿t káº¿ cÃ¢u há»i tráº¯c nghiá»‡m giÃ¡o dá»¥c. 
-Nhiá»‡m vá»¥ cá»§a báº¡n lÃ  Ä‘á»c ká»¹ tÃ i liá»‡u gá»‘c vÃ  táº¡o ra bá»™ gá»“m 5 cÃ¢u há»i tráº¯c nghiá»‡m (multiple choice) vá» chá»§ Ä‘á» "${topic.value}" vá»›i Ä‘á»™ khÃ³ "${difficulty.value}".
-Má»—i cÃ¢u há»i pháº£i cÃ³ 4 Ä‘Ã¡p Ã¡n lá»±a chá»n (A, B, C, D) vÃ  giáº£i thÃ­ch táº¡i sao Ä‘Ã¡p Ã¡n Ä‘Ã³ Ä‘Ãºng.
+Bạn là chuyên gia thiết kế câu hỏi trắc nghiệm giáo dục. 
+Nhiệm vụ của bạn là đọc kỹ tài liệu gốc và tạo ra bộ gồm 5 câu hỏi trắc nghiệm (multiple choice) về chủ đề "${topic.value}" với độ khó "${difficulty.value}".
+Mỗi câu hỏi phải có 4 đáp án lựa chọn (A, B, C, D) và giải thích tại sao đáp án đó đúng.
 
-Äáº§u ra Báº®T BUá»˜C lÃ  má»™t máº£ng JSON cÃ¡c Ä‘á»‘i tÆ°á»£ng cÃ³ cáº¥u trÃºc chÃ­nh xÃ¡c nhÆ° sau:
+Đầu ra BẮT BUỘC là một mảng JSON các đối tượng có cấu trúc chính xác như sau:
 [
   {
-    "question": "CÃ¢u há»i sá»‘ 1...",
-    "options": ["Lá»±a chá»n A", "Lá»±a chá»n B", "Lá»±a chá»n C", "Lá»±a chá»n D"],
+    "question": "Câu hỏi số 1...",
+    "options": ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],
     "correctAnswerIndex": 0,
-    "explanation": "Giáº£i thÃ­ch táº¡i sao Ä‘Ã¡p Ã¡n A Ä‘Ãºng..."
+    "explanation": "Giải thích tại sao đáp án A đúng..."
   }
 ]
     `
   } else if (selectedType.value === 'flashcard') {
     systemPrompt = `
-Báº¡n lÃ  giÃ¡o viÃªn biÃªn soáº¡n tháº» há»c táº­p thÃ´ng minh (flashcard).
-Nhiá»‡m vá»¥ cá»§a báº¡n lÃ  Ä‘á»c ká»¹ tÃ i liá»‡u gá»‘c vÃ  táº¡o ra bá»™ gá»“m 5 tháº» há»c flashcard Ä‘á»ƒ ghi nhá»› kiáº¿n thá»©c cá»‘t lÃµi vá» chá»§ Ä‘á» "${topic.value}" vá»›i Ä‘á»™ khÃ³ "${difficulty.value}".
-Má»—i tháº» pháº£i cÃ³:
-- Máº·t trÆ°á»›c (front): Má»™t cÃ¢u há»i Ä‘á»‹nh nghÄ©a, thuáº­t ngá»¯ cáº§n giáº£i thÃ­ch hoáº·c má»™t Ä‘oáº¡n code cáº§n dá»± Ä‘oÃ¡n káº¿t quáº£.
-- Máº·t sau (back): ÄÃ¡p Ã¡n chÃ­nh xÃ¡c giáº£i thÃ­ch ngáº¯n gá»n, sÃºc tÃ­ch (tá»‘i Ä‘a 2-3 cÃ¢u).
+Bạn là giáo viên biên soạn thẻ học tập thông minh (flashcard).
+Nhiệm vụ của bạn là đọc kỹ tài liệu gốc và tạo ra bộ gồm 5 thẻ học flashcard để ghi nhớ kiến thức cốt lõi về chủ đề "${topic.value}" với độ khó "${difficulty.value}".
+Mỗi thẻ phải có:
+- Mặt trước (front): Một câu hỏi định nghĩa, thuật ngữ cần giải thích hoặc một đoạn code cần dự đoán kết quả.
+- Mặt sau (back): Đáp án chính xác giải thích ngắn gọn, súc tích (tối đa 2-3 câu).
 
-Äáº§u ra Báº®T BUá»˜C lÃ  má»™t máº£ng JSON cÃ¡c Ä‘á»‘i tÆ°á»£ng cÃ³ cáº¥u trÃºc chÃ­nh xÃ¡c nhÆ° sau:
+Đầu ra BẮT BUỘC là một mảng JSON các đối tượng có cấu trúc chính xác như sau:
 [
   {
-    "front": "Thuáº­t ngá»¯ hoáº·c cÃ¢u há»i máº·t trÆ°á»›c...",
-    "back": "Lá»i giáº£i thÃ­ch hoáº·c Ä‘á»‹nh nghÄ©a máº·t sau..."
+    "front": "Thuật ngữ hoặc câu hỏi mặt trước...",
+    "back": "Lời giải thích hoặc định nghĩa mặt sau..."
   }
 ]
     `
   } else {
     systemPrompt = `
-Báº¡n lÃ  giÃ¡o vá»¥ cao cáº¥p soáº¡n tháº£o tÃ i liá»‡u há»c táº­p.
-HÃ£y tÃ³m táº¯t bÃ i giáº£ng má»™t cÃ¡ch khoa há»c, chuyÃªn nghiá»‡p vá» chá»§ Ä‘á» "${topic.value}" dá»±a trÃªn tÃ i liá»‡u gá»‘c, vá»›i má»©c Ä‘á»™ "${difficulty.value}".
-Báº£n tÃ³m táº¯t cáº§n phÃ¢n loáº¡i theo cáº¥u trÃºc rÃµ rÃ ng:
-1. Giá»›i thiá»‡u tá»•ng quan
-2. CÃ¡c khÃ¡i niá»‡m cá»‘t lÃµi cáº§n nhá»›
-3. VÃ­ dá»¥ thá»±c tiá»…n hoáº·c bÃ i táº­p minh há»a
-4. Lá»i khuyÃªn Ã´n luyá»‡n tá»« tháº§y cÃ´
+Bạn là giáo vụ cao cấp soạn thảo tài liệu học tập.
+Hãy tóm tắt bài giảng một cách khoa học, chuyên nghiệp về chủ đề "${topic.value}" dựa trên tài liệu gốc, với mức độ "${difficulty.value}".
+Bản tóm tắt cần phân loại theo cấu trúc rõ ràng:
+1. Giới thiệu tổng quan
+2. Các khái niệm cốt lõi cần nhớ
+3. Ví dụ thực tiễn hoặc bài tập minh họa
+4. Lời khuyên ôn luyện từ thầy cô
 
-HÃ£y viáº¿t á»Ÿ dáº¡ng vÄƒn báº£n Markdown chuáº©n má»±c báº±ng tiáº¿ng Viá»‡t.
+Hãy viết ở dạng văn bản Markdown chuẩn mực bằng tiếng Việt.
     `
   }
 
   const promptContext = `
-Ná»™i dung tÃ i liá»‡u gá»‘c:
+Nội dung tài liệu gốc:
 "${rawText.value}"
 
-YÃªu cáº§u thá»±c thi:
+Yêu cầu thực thi:
 ${systemPrompt}
   `
 
@@ -363,10 +363,10 @@ ${systemPrompt}
       flashcardsData.value = JSON.parse(text.trim())
     }
     
-    message.success('ÄÃ£ táº¡o tÃ i liá»‡u thÃ nh cÃ´ng báº±ng AI!')
+    message.success('Đã tạo tài liệu thành công bằng AI!')
   } catch (err) {
     console.error(err)
-    message.error('Gáº·p lá»—i khi táº¡o tÃ i liá»‡u há»c táº­p báº±ng AI.')
+    message.error('Gặp lỗi khi tạo tài liệu học tập bằng AI.')
     simulateFallback()
   } finally {
     generating.value = false
@@ -377,30 +377,30 @@ function simulateFallback() {
   if (selectedType.value === 'quiz') {
     quizData.value = [
       {
-        question: `CÃ¢u há»i Ã´n táº­p cÆ¡ báº£n vá» ${topic.value || 'BÃ i há»c'} lÃ  gÃ¬?`,
-        options: ['Lá»±a chá»n A - ÄÃ¡p Ã¡n máº«u', 'Lá»±a chá»n B', 'Lá»±a chá»n C', 'Lá»±a chá»n D'],
+        question: `Câu hỏi ôn tập cơ bản về ${topic.value || 'Bài học'} là gì?`,
+        options: ['Lựa chọn A - Đáp án mẫu', 'Lựa chọn B', 'Lựa chọn C', 'Lựa chọn D'],
         correctAnswerIndex: 0,
-        explanation: 'ÄÃ¢y lÃ  giáº£i thÃ­ch máº«u cho cÃ¢u tráº£ lá»i tráº¯c nghiá»‡m Ã´n táº­p.'
+        explanation: 'Đây là giải thích mẫu cho câu trả lời trắc nghiệm ôn tập.'
       }
     ]
     resultContent.value = JSON.stringify(quizData.value)
   } else if (selectedType.value === 'flashcard') {
     flashcardsData.value = [
       {
-        front: `KhÃ¡i niá»‡m cá»‘t lÃµi trong ${topic.value || 'BÃ i há»c'} lÃ  gÃ¬?`,
-        back: 'ÄÃ¢y lÃ  Ä‘á»‹nh nghÄ©a chi tiáº¿t cá»§a máº·t sau flashcard Ä‘á»ƒ há»— trá»£ ghi nhá»› nhanh chÃ³ng.'
+        front: `Khái niệm cốt lõi trong ${topic.value || 'Bài học'} là gì?`,
+        back: 'Đây là định nghĩa chi tiết của mặt sau flashcard để hỗ trợ ghi nhớ nhanh chóng.'
       }
     ]
     resultContent.value = JSON.stringify(flashcardsData.value)
   } else {
-    resultContent.value = `# TÃ³m táº¯t bÃ i há»c: ${topic.value}\n\n## 1. Tá»•ng quan\nBÃ i há»c cung cáº¥p cÃ¡c kiáº¿n thá»©c cÆ¡ báº£n vá» chá»§ Ä‘á» Ä‘Æ°á»£c yÃªu cáº§u.\n\n## 2. Kiáº¿n thá»©c cá»‘t lÃµi\n- Ghi nhá»› cÃ¡c khÃ¡i niá»‡m chÃ­nh trong tÃ i liá»‡u Ä‘á»c.\n- Xem xÃ©t cÃ¡c vÃ­ dá»¥ thá»±c hÃ nh.`
+    resultContent.value = `# Tóm tắt bài học: ${topic.value}\n\n## 1. Tổng quan\nBài học cung cấp các kiến thức cơ bản về chủ đề được yêu cầu.\n\n## 2. Kiến thức cốt lõi\n- Ghi nhớ các khái niệm chính trong tài liệu đọc.\n- Xem xét các ví dụ thực hành.`
   }
 }
 
 function copyResult() {
   if (!resultContent.value) return
   navigator.clipboard.writeText(resultContent.value)
-  message.success('ÄÃ£ sao chÃ©p ná»™i dung raw vÃ o bá»™ nhá»› táº¡m!')
+  message.success('Đã sao chép nội dung raw vào bộ nhớ tạm!')
 }
 
 function downloadResult() {

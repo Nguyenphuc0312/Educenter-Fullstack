@@ -235,7 +235,7 @@ const formGroups = [
     fields: ['username', 'password']
   },
   {
-    title: 'Thông tin cá nhân',
+    title: 'Th�ng tin c� nh�n',
     fields: ['fullName', 'email', 'phone']
   },
   {

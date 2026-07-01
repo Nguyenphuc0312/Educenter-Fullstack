@@ -322,7 +322,7 @@ const paymentMethods = [
   {
     value: 2,
     label: "Chuyển khoản",
-    short: "Ngân hàng/VietQR",
+    short: "Ng�n h�ng/VietQR",
     description: "Quét QR ngân hàng hoặc chuyển khoản đúng nội dung để quản trị viên đối soát.",
     instructionTitle: "Thông tin chuyển khoản",
     qrAlt: "Mã QR chuyển khoản ngân hàng",
@@ -333,7 +333,7 @@ const paymentMethods = [
     short: "Ví điện tử mock",
     description: "Mô phỏng thanh toán qua ví Momo. Sau khi thanh toán, gửi yêu cầu để admin xác minh.",
     instructionTitle: "Thông tin thanh toán Momo",
-    qrAlt: "Mã QR Momo",
+    qrAlt: "M� QR Momo",
   },
   {
     value: 4,
@@ -341,7 +341,7 @@ const paymentMethods = [
     short: "Cổng online mock",
     description: "Mô phỏng thanh toán VNPay QR có số tiền và nội dung hóa đơn cho demo.",
     instructionTitle: "Thông tin thanh toán VNPay",
-    qrAlt: "Mã QR VNPay",
+    qrAlt: "M� QR VNPay",
   },
 ];
 

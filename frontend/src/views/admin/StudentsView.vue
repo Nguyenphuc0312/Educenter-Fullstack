@@ -194,7 +194,7 @@
                 <th class="p-2.5 font-bold text-base-secondary text-center">Chuyên cần</th>
                 <th class="p-2.5 font-bold text-base-secondary text-right">Còn nợ</th>
                 <th class="p-2.5 font-bold text-base-secondary text-center">Nguy cơ Churn</th>
-                <th class="p-2.5 font-bold text-base-secondary">Nguyên nhân</th>
+                <th class="p-2.5 font-bold text-base-secondary">Nguy�n nh�n</th>
                 <th class="p-2.5 font-bold text-base-secondary text-center">Thao tác</th>
               </tr>
             </thead>

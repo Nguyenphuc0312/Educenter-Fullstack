@@ -38,7 +38,7 @@
       >
         <a-select-option value="Cơ bản">Cơ bản</a-select-option>
         <a-select-option value="Trung cấp">Trung cấp</a-select-option>
-        <a-select-option value="Nâng cao">Nâng cao</a-select-option>
+        <a-select-option value="N�ng cao">N�ng cao</a-select-option>
       </a-select>
 
       <!-- Tuition Range Filter -->

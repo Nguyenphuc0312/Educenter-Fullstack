@@ -1,8 +1,8 @@
-﻿<template>
+<template>
   <div class="space-y-6">
     <PageHeader
-      title="KhÃ³a há»c cá»§a tÃ´i"
-      subtitle="Quáº£n lÃ½ tiáº¿n trÃ¬nh há»c táº­p, lá»‹ch há»c vÃ  Ä‘Ã¡nh giÃ¡ khÃ³a há»c sau khi hoÃ n thÃ nh."
+      title="Khóa học của tôi"
+      subtitle="Quản lý tiến trình học tập, lịch học và đánh giá khóa học sau khi hoàn thành."
     >
       <template #actions>
         <router-link
@@ -12,7 +12,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          KhÃ¡m phÃ¡ khÃ³a há»c
+          Khám phá khóa học
         </router-link>
       </template>
     </PageHeader>
@@ -20,7 +20,7 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
       <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
-          <span class="text-slate-500 text-sm font-semibold uppercase tracking-wider mb-1 block">Tá»•ng ghi danh</span>
+          <span class="text-slate-500 text-sm font-semibold uppercase tracking-wider mb-1 block">Tổng ghi danh</span>
           <strong class="text-3xl text-slate-800 font-black">{{ courses.length }}</strong>
         </div>
         <div class="p-3 bg-slate-50 rounded-full text-slate-400">
@@ -31,7 +31,7 @@
       </div>
       <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
-          <span class="text-blue-600 text-sm font-semibold uppercase tracking-wider mb-1 block">Äang há»c táº­p</span>
+          <span class="text-blue-600 text-sm font-semibold uppercase tracking-wider mb-1 block">Đang học tập</span>
           <strong class="text-3xl text-blue-700 font-black">{{ studyingCount }}</strong>
         </div>
         <div class="p-3 bg-blue-50 rounded-full text-blue-500">
@@ -42,7 +42,7 @@
       </div>
       <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
-          <span class="text-emerald-600 text-sm font-semibold uppercase tracking-wider mb-1 block">ÄÃ£ hoÃ n thÃ nh</span>
+          <span class="text-emerald-600 text-sm font-semibold uppercase tracking-wider mb-1 block">Đã hoàn thành</span>
           <strong class="text-3xl text-emerald-700 font-black">{{ completedCount }}</strong>
         </div>
         <div class="p-3 bg-emerald-50 rounded-full text-emerald-500">
@@ -56,9 +56,9 @@
     <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="border-b border-slate-200 px-6 pt-4">
         <a-tabs v-model:activeKey="activeTab">
-          <a-tab-pane key="all" tab="Táº¥t cáº£ khÃ³a há»c" />
-          <a-tab-pane key="active" tab="Äang tiáº¿n hÃ nh" />
-          <a-tab-pane key="completed" tab="ÄÃ£ hoÃ n thÃ nh" />
+          <a-tab-pane key="all" tab="Tất cả khóa học" />
+          <a-tab-pane key="active" tab="Đang tiến hành" />
+          <a-tab-pane key="completed" tab="Đã hoàn thành" />
         </a-tabs>
       </div>
 
@@ -67,13 +67,13 @@
         <div v-else-if="error" class="text-center text-red-500 py-8 font-medium">{{ error }}</div>
 
         <div v-else-if="filteredCourses.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
-          <a-empty description="KhÃ´ng tÃ¬m tháº¥y khÃ³a há»c nÃ o trong má»¥c nÃ y." />
+          <a-empty description="Không tìm thấy khóa học nào trong mục này." />
           <router-link
             v-if="activeTab === 'all'"
             to="/courses"
             class="mt-4 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
           >
-            ÄÄƒng kÃ½ khÃ³a há»c má»›i
+            Đăng ký khóa học mới
           </router-link>
         </div>
 
@@ -85,7 +85,7 @@
           >
             <div class="p-5 border-b border-slate-100 relative">
               <div class="flex justify-between items-start gap-4 mb-2">
-                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">KhÃ³a há»c</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Khóa học</span>
                 <span :class="statusBadge(course.status)">{{ statusText(course.status) }}</span>
               </div>
               <h2 class="text-lg font-bold text-slate-800 line-clamp-2 leading-tight mb-1" :title="course.courseNameSnapshot">
@@ -93,7 +93,7 @@
               </h2>
               <p class="text-sm text-slate-500 font-medium">{{ course.classNameSnapshot }}</p>
               <div v-if="reviewFor(course)" class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
-                <span>ÄÃ£ Ä‘Ã¡nh giÃ¡</span>
+                <span>Đã đánh giá</span>
                 <a-rate :value="Number(reviewFor(course)?.courseRating || 0)" disabled allow-half class="review-mini-rate" />
               </div>
             </div>
@@ -101,18 +101,18 @@
             <div class="p-5 flex-1 flex flex-col">
               <div class="flex justify-between items-center mb-4 text-sm">
                 <div>
-                  <span class="block text-slate-400 text-xs mb-0.5">NgÃ y ghi danh</span>
+                  <span class="block text-slate-400 text-xs mb-0.5">Ngày ghi danh</span>
                   <strong class="text-slate-700">{{ formatDate(course.enrolledAt) }}</strong>
                 </div>
                 <div class="text-right">
-                  <span class="block text-slate-400 text-xs mb-0.5">Giáº£ng viÃªn</span>
+                  <span class="block text-slate-400 text-xs mb-0.5">Giảng viên</span>
                   <strong class="text-slate-700">{{ teacherSummary(course) }}</strong>
                 </div>
               </div>
 
               <div class="mt-auto pt-2">
                 <div class="flex justify-between text-xs font-semibold mb-1">
-                  <span class="text-slate-500">Tiáº¿n Ä‘á»™ há»c táº­p</span>
+                  <span class="text-slate-500">Tiến độ học tập</span>
                   <span :class="getProgressColorText(course)">{{ progressLabel(course) }}</span>
                 </div>
                 <a-progress
@@ -134,7 +134,7 @@
                 :to="`/student/courses/${course.classId || course.id}`"
                 class="flex-1 text-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
               >
-                VÃ o lá»›p
+                Vào lớp
               </router-link>
               <button
                 v-if="isCompleted(course)"
@@ -142,15 +142,15 @@
                 class="px-4 py-2 bg-white border border-amber-300 hover:bg-amber-50 text-amber-700 font-semibold rounded-lg text-sm transition-colors"
                 @click="openReview(course)"
               >
-                {{ reviewFor(course) ? "Sá»­a Ä‘Ã¡nh giÃ¡" : "ÄÃ¡nh giÃ¡" }}
+                {{ reviewFor(course) ? "Sửa đánh giá" : "Đánh giá" }}
               </button>
               <router-link
                 v-else
                 to="/student/results"
                 class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium rounded-lg text-sm transition-colors flex items-center justify-center"
-                title="Xem Ä‘iá»ƒm sá»‘"
+                title="Xem điểm số"
               >
-                Äiá»ƒm
+                Điểm
               </router-link>
             </div>
           </article>
@@ -166,22 +166,22 @@
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 relative z-10">
         <div>
           <h2 class="text-xl font-extrabold flex items-center gap-2 text-white">
-            <span class="text-2xl">ðŸ¤–</span> Äá» xuáº¥t lá»™ trÃ¬nh há»c táº­p (AI Collaborative Filtering)
+            <span class="text-2xl">🤖</span> Đề xuất lộ trình học tập (AI Collaborative Filtering)
           </h2>
-          <p class="text-sm text-indigo-200 mt-1">Gá»£i Ã½ lá»™ trÃ¬nh tiáº¿p theo dá»±a trÃªn sá»Ÿ thÃ­ch, káº¿t quáº£ há»c táº­p hiá»‡n táº¡i vÃ  lá»™ trÃ¬nh cá»§a há»c viÃªn cÃ³ chung Ä‘áº·c Ä‘iá»ƒm.</p>
+          <p class="text-sm text-indigo-200 mt-1">Gợi ý lộ trình tiếp theo dựa trên sở thích, kết quả học tập hiện tại và lộ trình của học viên có chung đặc điểm.</p>
         </div>
         <button
           v-if="!loadingRecs"
           @click="generateRecommendations(true)"
           class="px-3.5 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/30 hover:border-indigo-400/50 text-indigo-200 rounded-lg text-xs font-semibold transition-all duration-300 flex items-center gap-1.5 cursor-pointer active:scale-95"
         >
-          LÃ m má»›i gá»£i Ã½
+          Làm mới gợi ý
         </button>
       </div>
 
       <div v-if="loadingRecs" class="py-12 flex flex-col items-center justify-center relative z-10">
         <LoadingSpinner size="lg" class="!text-indigo-400" />
-        <span class="text-sm text-indigo-300 mt-3 font-medium animate-pulse">Há»‡ thá»‘ng Ä‘ang cháº¡y lá»c cá»™ng tÃ¡c & phÃ¢n tÃ­ch dá»¯ liá»‡u há»c táº­p...</span>
+        <span class="text-sm text-indigo-300 mt-3 font-medium animate-pulse">Hệ thống đang chạy lọc cộng tác & phân tích dữ liệu học tập...</span>
       </div>
 
       <div v-else-if="recError" class="p-5 text-center text-red-300 bg-red-950/20 border border-red-800/30 rounded-xl max-w-xl mx-auto my-4 relative z-10">
@@ -189,7 +189,7 @@
       </div>
 
       <div v-else-if="recommendations.length === 0" class="text-center py-8 text-indigo-300 relative z-10">
-        ChÆ°a cÃ³ Ä‘á» xuáº¥t lá»™ trÃ¬nh má»›i. HÃ£y hoÃ n thÃ nh khÃ³a há»c Ä‘á»ƒ nháº­n gá»£i Ã½ lá»™ trÃ¬nh phÃ¹ há»£p!
+        Chưa có đề xuất lộ trình mới. Hãy hoàn thành khóa học để nhận gợi ý lộ trình phù hợp!
       </div>
 
       <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
@@ -199,10 +199,10 @@
           class="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col hover:bg-white/10 hover:border-indigo-500/40 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group shadow-lg"
         >
           <div class="flex justify-between items-start mb-3">
-            <span class="text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">Gá»£i Ã½ AI</span>
+            <span class="text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">Gợi ý AI</span>
             <div class="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded px-2 py-0.5">
               <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
-              <span class="text-xs font-black text-emerald-400 font-mono">{{ rec.matchPercent }}% Khá»›p</span>
+              <span class="text-xs font-black text-emerald-400 font-mono">{{ rec.matchPercent }}% Khớp</span>
             </div>
           </div>
 
@@ -215,7 +215,7 @@
           </p>
 
           <div class="mb-4">
-            <span class="block text-[10px] font-bold text-indigo-300 uppercase tracking-wide mb-1.5">Ká»¹ nÄƒng cá»‘t lÃµi:</span>
+            <span class="block text-[10px] font-bold text-indigo-300 uppercase tracking-wide mb-1.5">Kỹ năng cốt lõi:</span>
             <div class="flex flex-wrap gap-1.5">
               <span
                 v-for="topic in rec.topics"
@@ -231,7 +231,7 @@
             @click="registerInterest(rec)"
             class="w-full mt-auto py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all duration-300 cursor-pointer active:scale-95 shadow-md border border-indigo-400/20 flex items-center justify-center gap-1.5"
           >
-            ÄÄƒng kÃ½ tÆ° váº¥n khÃ³a há»c
+            Đăng ký tư vấn khóa học
           </button>
         </div>
       </div>
@@ -240,22 +240,22 @@
 
     <a-modal
       v-model:open="reviewModalOpen"
-      :title="reviewForm.id ? 'Sá»­a Ä‘Ã¡nh giÃ¡ khÃ³a há»c' : 'ÄÃ¡nh giÃ¡ khÃ³a há»c'"
+      :title="reviewForm.id ? 'Sửa đánh giá khóa học' : 'Đánh giá khóa học'"
       width="760px"
       :confirm-loading="savingReview"
-      ok-text="LÆ°u Ä‘Ã¡nh giÃ¡"
-      cancel-text="ÄÃ³ng"
+      ok-text="Lưu đánh giá"
+      cancel-text="Đóng"
       @ok="saveReview"
     >
       <div v-if="selectedCourse" class="space-y-5">
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">KhÃ³a há»c</p>
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Khóa học</p>
           <h3 class="text-lg font-black text-slate-900">{{ selectedCourse.courseNameSnapshot }}</h3>
           <p class="text-sm text-slate-600">{{ selectedCourse.classNameSnapshot }}</p>
         </div>
 
         <div class="space-y-2">
-          <label class="text-sm font-bold text-slate-700">ÄÃ¡nh giÃ¡ khÃ³a há»c</label>
+          <label class="text-sm font-bold text-slate-700">Đánh giá khóa học</label>
           <div class="flex items-center gap-3">
             <a-rate v-model:value="reviewForm.courseRating" allow-half class="text-amber-500 text-xl" />
             <span class="text-sm font-semibold text-slate-600">{{ reviewForm.courseRating }}/5</span>
@@ -265,23 +265,23 @@
             rows="3"
             maxlength="1000"
             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            placeholder="Cáº£m nháº­n vá» ná»™i dung, tÃ i liá»‡u, lá»‹ch há»c hoáº·c tráº£i nghiá»‡m há»c táº­p..."
+            placeholder="Cảm nhận về nội dung, tài liệu, lịch học hoặc trải nghiệm học tập..."
           ></textarea>
         </div>
 
         <div class="space-y-3">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-bold text-slate-700">ÄÃ¡nh giÃ¡ giáº£ng viÃªn</label>
-            <span class="text-xs text-slate-500">{{ reviewForm.teacherReviews.length }} giáº£ng viÃªn</span>
+            <label class="text-sm font-bold text-slate-700">Đánh giá giảng viên</label>
+            <span class="text-xs text-slate-500">{{ reviewForm.teacherReviews.length }} giảng viên</span>
           </div>
           <div v-if="reviewForm.teacherReviews.length === 0" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            Lá»›p há»c nÃ y chÆ°a cÃ³ dá»¯ liá»‡u giáº£ng viÃªn Ä‘á»ƒ Ä‘Ã¡nh giÃ¡.
+            Lớp học này chưa có dữ liệu giảng viên để đánh giá.
           </div>
           <div v-for="teacher in reviewForm.teacherReviews" :key="teacher.teacherId" class="rounded-xl border border-slate-200 p-4 space-y-2">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p class="font-bold text-slate-900">{{ teacher.teacherNameSnapshot }}</p>
-                <p class="text-xs text-slate-500">Giáº£ng viÃªn phá»¥ trÃ¡ch lá»›p</p>
+                <p class="text-xs text-slate-500">Giảng viên phụ trách lớp</p>
               </div>
               <div class="flex items-center gap-3">
                 <a-rate v-model:value="teacher.rating" allow-half class="text-amber-500" />
@@ -293,7 +293,7 @@
               rows="2"
               maxlength="1000"
               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              placeholder="Nháº­n xÃ©t vá» phÆ°Æ¡ng phÃ¡p giáº£ng dáº¡y, há»— trá»£ há»c viÃªn..."
+              placeholder="Nhận xét về phương pháp giảng dạy, hỗ trợ học viên..."
             ></textarea>
           </div>
         </div>
@@ -365,7 +365,7 @@ async function loadData() {
       generateRecommendations();
     }
   } catch (err) {
-    error.value = err.message || "Há»‡ thá»‘ng Ä‘ang báº£o trÃ¬. Vui lÃ²ng thá»­ láº¡i sau.";
+    error.value = err.message || "Hệ thống đang bảo trì. Vui lòng thử lại sau.";
   } finally {
     loading.value = false;
   }
@@ -399,36 +399,36 @@ async function generateRecommendations(force = false) {
 
   try {
       const currentCoursesText = courses.value.map(c => `- ${c.courseNameSnapshot} (${c.classNameSnapshot})`).join("\n");
-      const currentResultsText = results.value.map(r => `- MÃ´n ${r.courseNameSnapshot}: Äiá»ƒm TB ${r.averageScore || 'ChÆ°a cÃ³'}, ChuyÃªn cáº§n ${r.attendancePercent || 0}%`).join("\n");
-      const candidatesText = candidateCourses.map(c => `- ID: ${c.id}, TÃªn: ${c.courseName}, MÃ´ táº£: ${c.description || 'ChÆ°a cáº­p nháº­t'}`).join("\n");
+      const currentResultsText = results.value.map(r => `- Môn ${r.courseNameSnapshot}: Điểm TB ${r.averageScore || 'Chưa có'}, Chuyên cần ${r.attendancePercent || 0}%`).join("\n");
+      const candidatesText = candidateCourses.map(c => `- ID: ${c.id}, Tên: ${c.courseName}, Mô tả: ${c.description || 'Chưa cập nhật'}`).join("\n");
 
-      const prompt = `Báº¡n lÃ  má»™t Há»‡ thá»‘ng Äá» xuáº¥t KhÃ³a há»c (Recommendation System) thÃ´ng minh hoáº¡t Ä‘á»™ng báº±ng thuáº­t toÃ¡n Lá»c cá»™ng tÃ¡c (Collaborative Filtering) cá»§a trung tÃ¢m Ä‘Ã o táº¡o láº­p trÃ¬nh EduCenter.
-Nhiá»‡m vá»¥ cá»§a báº¡n lÃ  phÃ¢n tÃ­ch thÃ´ng tin há»c táº­p cá»§a há»c viÃªn sau Ä‘Ã¢y Ä‘á»ƒ Ä‘Æ°a ra lá»™ trÃ¬nh cÃ¡c khÃ³a há»c Ä‘á» xuáº¥t tiáº¿p theo phÃ¹ há»£p nháº¥t (tá»‘i Ä‘a 3 khÃ³a há»c):
+      const prompt = `Bạn là một Hệ thống Đề xuất Khóa học (Recommendation System) thông minh hoạt động bằng thuật toán Lọc cộng tác (Collaborative Filtering) của trung tâm đào tạo lập trình EduCenter.
+Nhiệm vụ của bạn là phân tích thông tin học tập của học viên sau đây để đưa ra lộ trình các khóa học đề xuất tiếp theo phù hợp nhất (tối đa 3 khóa học):
 
-Há»ŒC VIÃŠN ÄANG/ÄÃƒ Há»ŒC:
-${currentCoursesText || "ChÆ°a cÃ³ khÃ³a há»c nÃ o."}
+HỌC VIÊN ĐANG/ĐÃ HỌC:
+${currentCoursesText || "Chưa có khóa học nào."}
 
-Báº¢NG ÄIá»‚M CHI TIáº¾T:
-${currentResultsText || "ChÆ°a cÃ³ Ä‘iá»ƒm sá»‘ nÃ o."}
+BẢNG ĐIỂM CHI TIẾT:
+${currentResultsText || "Chưa có điểm số nào."}
 
-DANH SÃCH CÃC KHÃ“A Há»ŒC Sáº´N CÃ“ Äá»‚ Gá»¢I Ã (Äá»ªNG gá»£i Ã½ nhá»¯ng khÃ³a há»c há»c viÃªn Ä‘Ã£ tham gia á»Ÿ trÃªn):
+DANH SÁCH CÁC KHÓA HỌC SẴN CÓ ĐỂ GỢI Ý (ĐỪNG gợi ý những khóa học học viên đã tham gia ở trên):
 ${candidatesText}
 
-HÃ£y giáº£ láº­p thuáº­t toÃ¡n Collaborative Filtering: Ä‘á»‘i chiáº¿u cÃ¡c há»c viÃªn xuáº¥t sáº¯c khÃ³a trÆ°á»›c cÃ³ Ä‘iá»ƒm sá»‘ vÃ  lá»™ trÃ¬nh tÆ°Æ¡ng Ä‘á»“ng Ä‘á»ƒ Ä‘Æ°a ra gá»£i Ã½ khÃ³a há»c tiáº¿p theo tá»‘i Æ°u. VÃ­ dá»¥: há»c viÃªn Ä‘Ã£ há»c tá»‘t Web cÆ¡ báº£n sáº½ Ä‘Æ°á»£c gá»£i Ã½ cÃ¡c khÃ³a Framework Front-end nÃ¢ng cao hoáº·c Node.js Backend.
+Hãy giả lập thuật toán Collaborative Filtering: đối chiếu các học viên xuất sắc khóa trước có điểm số và lộ trình tương đồng để đưa ra gợi ý khóa học tiếp theo tối ưu. Ví dụ: học viên đã học tốt Web cơ bản sẽ được gợi ý các khóa Framework Front-end nâng cao hoặc Node.js Backend.
 
-Äáº¦U RA PHáº¢I LÃ€ Má»˜T Máº¢NG JSON Há»¢P Lá»† chá»©a Ä‘Ãºng tá»‘i Ä‘a 3 pháº§n tá»­ cÃ³ Ä‘á»‹nh dáº¡ng cáº¥u trÃºc chÃ­nh xÃ¡c nhÆ° sau:
+ĐẦU RA PHẢI LÀ MỘT MẢNG JSON HỢP LỆ chứa đúng tối đa 3 phần tử có định dạng cấu trúc chính xác như sau:
 [
   {
     "courseId": "id_khoa_hoc_tu_danh_sach",
-    "courseName": "TÃªn khÃ³a há»c chÃ­nh xÃ¡c tá»« danh sÃ¡ch",
-    "matchPercent": 95, // Chá»‰ sá»‘ phÃ¹ há»£p tá»« 70% Ä‘áº¿n 98%
-    "reason": "Giáº£i thÃ­ch cÃ¡ nhÃ¢n hÃ³a cá»¥ thá»ƒ vÃ¬ sao khÃ³a há»c nÃ y lÃ  bÆ°á»›c Ä‘i tiáº¿p theo phÃ¹ há»£p cho há» dá»±a trÃªn káº¿t quáº£ há»c táº­p mÃ´n X hoáº·c Ä‘á»‹nh hÆ°á»›ng nghá» nghiá»‡p...",
-    "topics": ["Chá»§ Ä‘á» 1", "Chá»§ Ä‘á» 2", "Chá»§ Ä‘á» 3"]
+    "courseName": "Tên khóa học chính xác từ danh sách",
+    "matchPercent": 95, // Chỉ số phù hợp từ 70% đến 98%
+    "reason": "Giải thích cá nhân hóa cụ thể vì sao khóa học này là bước đi tiếp theo phù hợp cho họ dựa trên kết quả học tập môn X hoặc định hướng nghề nghiệp...",
+    "topics": ["Chủ đề 1", "Chủ đề 2", "Chủ đề 3"]
   }
 ]
-ChÃº Ã½ quan trá»ng:
-1. Tráº£ vá» CHá»ˆ chuá»—i máº£ng JSON nÃ y. Tuyá»‡t Ä‘á»‘i khÃ´ng bá»c trong tháº» markdown \`\`\`json hay báº¥t ká»³ vÄƒn báº£n giáº£i thÃ­ch nÃ o khÃ¡c. Pháº£n há»“i pháº£i lÃ  má»™t chuá»—i parse Ä‘Æ°á»£c trá»±c tiáº¿p báº±ng JSON.parse().
-2. Náº¿u danh sÃ¡ch gá»£i Ã½ trá»‘ng, hÃ£y tráº£ vá» máº£ng rá»—ng [].`;
+Chú ý quan trọng:
+1. Trả về CHỈ chuỗi mảng JSON này. Tuyệt đối không bọc trong thẻ markdown \`\`\`json hay bất kỳ văn bản giải thích nào khác. Phản hồi phải là một chuỗi parse được trực tiếp bằng JSON.parse().
+2. Nếu danh sách gợi ý trống, hãy trả về mảng rỗng [].`;
 
       let responseText = (await aiApi.complete({
         prompt,
@@ -474,9 +474,9 @@ function runLocalRecommendation(candidateCourses) {
       });
       if (hasBasicWeb) {
         score += 12;
-        reasons.push(`Dá»±a trÃªn viá»‡c báº¡n Ä‘Ã£ tÃ­ch lÅ©y kiáº¿n thá»©c ná»n táº£ng Web tá»‘t (Äiá»ƒm TB mÃ´n Web: ${formatScore(avgScore)}), khÃ³a há»c nÃ y lÃ  máº£nh ghÃ©p hoÃ n háº£o Ä‘á»ƒ báº¡n phÃ¡t triá»ƒn chuyÃªn sÃ¢u Front-end Framework.`);
+        reasons.push(`Dựa trên việc bạn đã tích lũy kiến thức nền tảng Web tốt (Điểm TB môn Web: ${formatScore(avgScore)}), khóa học này là mảnh ghép hoàn hảo để bạn phát triển chuyên sâu Front-end Framework.`);
       } else {
-        reasons.push("KhÃ³a há»c Front-end thá»‹nh hÃ nh Ä‘Æ°á»£c Ä‘á» xuáº¥t nhiá»u nháº¥t cho há»c viÃªn má»›i báº¯t Ä‘áº§u Ä‘á»‹nh hÆ°á»›ng Web.");
+        reasons.push("Khóa học Front-end thịnh hành được đề xuất nhiều nhất cho học viên mới bắt đầu định hướng Web.");
       }
       topics = ["Component Lifecycle", "State Management", "Tailwind CSS Integration", "API Routing"];
     } else if (courseName.includes("node") || courseName.includes("net") || courseName.includes("c#") || courseName.includes("java") || courseName.includes("backend") || courseName.includes("database") || courseName.includes("sql")) {
@@ -486,17 +486,17 @@ function runLocalRecommendation(candidateCourses) {
       });
       if (hasJs) {
         score += 10;
-        reasons.push("Sau khi náº¯m vá»¯ng Client-side, viá»‡c bá»• trá»£ ká»¹ nÄƒng Server-side vÃ  CÆ¡ sá»Ÿ dá»¯ liá»‡u sáº½ giÃºp báº¡n hoÃ n thiá»‡n lá»™ trÃ¬nh trá»Ÿ thÃ nh Fullstack Developer.");
+        reasons.push("Sau khi nắm vững Client-side, việc bổ trợ kỹ năng Server-side và Cơ sở dữ liệu sẽ giúp bạn hoàn thiện lộ trình trở thành Fullstack Developer.");
       } else {
-        reasons.push("Kiáº¿n thá»©c Backend cá»‘t lÃµi giÃºp thiáº¿t láº­p ná»n táº£ng tÆ° duy láº­p trÃ¬nh vá»¯ng cháº¯c cÃ¹ng kiáº¿n trÃºc cÆ¡ sá»Ÿ dá»¯ liá»‡u tá»‘i Æ°u.");
+        reasons.push("Kiến thức Backend cốt lõi giúp thiết lập nền tảng tư duy lập trình vững chắc cùng kiến trúc cơ sở dữ liệu tối ưu.");
       }
       topics = ["RESTful APIs", "Relational Databases", "Authentication & Security", "Server Architectures"];
     } else if (courseName.includes("fullstack") || courseName.includes("full-stack")) {
       score += 8;
-      reasons.push("ÄÆ°á»£c gá»£i Ã½ dá»±a trÃªn lá»™ trÃ¬nh cá»§a 92% há»c viÃªn cÃ¹ng xuáº¥t phÃ¡t Ä‘iá»ƒm cÃ³ mong muá»‘n thÄƒng tiáº¿n nhanh thÃ nh ká»¹ sÆ° pháº§n má»m Ä‘a nhiá»‡m.");
+      reasons.push("Được gợi ý dựa trên lộ trình của 92% học viên cùng xuất phát điểm có mong muốn thăng tiến nhanh thành kỹ sư phần mềm đa nhiệm.");
       topics = ["End-to-End Dev", "Deployment & CI/CD", "System Designing", "Microservices"];
     } else {
-      reasons.push("MÃ´n há»c bá»• trá»£ náº±m trong chuá»—i lá»™ trÃ¬nh kiáº¿n trÃºc pháº§n má»m Ä‘Æ°á»£c cÃ¡c há»c viÃªn xuáº¥t sáº¯c lá»±a chá»n nhiá»u nháº¥t ká»³ nÃ y.");
+      reasons.push("Môn học bổ trợ nằm trong chuỗi lộ trình kiến trúc phần mềm được các học viên xuất sắc lựa chọn nhiều nhất kỳ này.");
       topics = ["OOP Principles", "Data Structures", "Algorithm Analytics", "Clean Coding"];
     }
 
@@ -508,7 +508,7 @@ function runLocalRecommendation(candidateCourses) {
       courseId: course.id,
       courseName: course.courseName,
       matchPercent: Math.min(99, score),
-      reason: reasons[0] || "ÄÆ°á»£c Ä‘á» xuáº¥t nhiá»u nháº¥t dá»±a trÃªn há»“ sÆ¡ há»c táº­p vÃ  Ä‘á»‹nh hÆ°á»›ng cÃ´ng viá»‡c láº­p trÃ¬nh.",
+      reason: reasons[0] || "Được đề xuất nhiều nhất dựa trên hồ sơ học tập và định hướng công việc lập trình.",
       topics: topics.slice(0, 3)
     };
   });
@@ -519,10 +519,10 @@ function runLocalRecommendation(candidateCourses) {
 }
 
 function registerInterest(rec) {
-  const hide = message.loading(`Äang gá»­i yÃªu cáº§u Ä‘Äƒng kÃ½ tÆ° váº¥n khÃ³a há»c ${rec.courseName}...`, 0);
+  const hide = message.loading(`Đang gửi yêu cầu đăng ký tư vấn khóa học ${rec.courseName}...`, 0);
   setTimeout(() => {
     hide();
-    message.success(`ÄÄƒng kÃ½ tÆ° váº¥n lá»™ trÃ¬nh thÃ nh cÃ´ng! Äá»™i ngÅ© há»c vá»¥ sáº½ liÃªn há»‡ vá»›i báº¡n trong vÃ²ng 24h Ä‘á»ƒ hÆ°á»›ng dáº«n chi tiáº¿t vá» khÃ³a há»c ${rec.courseName}.`);
+    message.success(`Đăng ký tư vấn lộ trình thành công! Đội ngũ học vụ sẽ liên hệ với bạn trong vòng 24h để hướng dẫn chi tiết về khóa học ${rec.courseName}.`);
   }, 1200);
 }
 
@@ -549,7 +549,7 @@ function openReview(course) {
 async function saveReview() {
   if (!selectedCourse.value) return;
   if (reviewForm.teacherReviews.length === 0) {
-    message.warning("Lá»›p há»c chÆ°a cÃ³ giáº£ng viÃªn Ä‘á»ƒ Ä‘Ã¡nh giÃ¡.");
+    message.warning("Lớp học chưa có giảng viên để đánh giá.");
     return;
   }
   savingReview.value = true;
@@ -570,9 +570,9 @@ async function saveReview() {
     if (index >= 0) reviews.value.splice(index, 1, saved);
     else reviews.value.unshift(saved);
     reviewModalOpen.value = false;
-    message.success("ÄÃ£ lÆ°u Ä‘Ã¡nh giÃ¡.");
+    message.success("Đã lưu đánh giá.");
   } catch (err) {
-    message.error(err.message || "KhÃ´ng thá»ƒ lÆ°u Ä‘Ã¡nh giÃ¡.");
+    message.error(err.message || "Không thể lưu đánh giá.");
   } finally {
     savingReview.value = false;
   }
@@ -588,14 +588,14 @@ function teacherOptions(course) {
   return ids
     .map((id, index) => ({
       teacherId: id,
-      teacherNameSnapshot: names[index] || `Giáº£ng viÃªn ${index + 1}`,
+      teacherNameSnapshot: names[index] || `Giảng viên ${index + 1}`,
     }))
     .filter((x) => x.teacherId);
 }
 
 function teacherSummary(course) {
   const names = Array.isArray(course.teacherNames) ? course.teacherNames.filter(Boolean) : [];
-  if (names.length === 0) return "ChÆ°a cáº­p nháº­t";
+  if (names.length === 0) return "Chưa cập nhật";
   if (names.length === 1) return names[0];
   return `${names[0]} +${names.length - 1}`;
 }
@@ -611,16 +611,16 @@ function isCompleted(course) {
 
 function statusText(status) {
   const map = {
-    Pending: "Chá» duyá»‡t",
-    Confirmed: "ÄÃ£ xÃ¡c nháº­n",
-    Studying: "Äang há»c",
-    Completed: "HoÃ n thÃ nh",
-    Cancelled: "ÄÃ£ há»§y",
-    1: "Chá» duyá»‡t",
-    2: "ÄÃ£ xÃ¡c nháº­n",
-    3: "Äang há»c",
-    4: "HoÃ n thÃ nh",
-    5: "ÄÃ£ há»§y",
+    Pending: "Chờ duyệt",
+    Confirmed: "Đã xác nhận",
+    Studying: "Đang học",
+    Completed: "Hoàn thành",
+    Cancelled: "Đã hủy",
+    1: "Chờ duyệt",
+    2: "Đã xác nhận",
+    3: "Đang học",
+    4: "Hoàn thành",
+    5: "Đã hủy",
   };
   return map[statusKey(status)] || status;
 }
@@ -645,19 +645,19 @@ function progress(course) {
 }
 
 function progressLabel(course) {
-  if (isInvalidEnrollmentPeriod(course)) return "KhÃ´ng Ã¡p dá»¥ng";
-  if (!canShowProgress(course)) return "ChÆ°a tÃ­nh";
+  if (isInvalidEnrollmentPeriod(course)) return "Không áp dụng";
+  if (!canShowProgress(course)) return "Chưa tính";
   return `${progress(course)}%`;
 }
 
 function progressHint(course) {
   const value = statusKey(course.status);
-  if (isInvalidEnrollmentPeriod(course)) return "NgÃ y ghi danh sau khi lá»›p Ä‘Ã£ káº¿t thÃºc. Vui lÃ²ng liÃªn há»‡ Admin Ä‘á»ƒ chuyá»ƒn lá»›p.";
-  if (value === "Pending" || value === 1) return "Chá» Admin duyá»‡t, chÆ°a cÃ³ tiáº¿n Ä‘á»™ há»c.";
-  if (value === "Confirmed" || value === 2) return "ÄÃ£ xÃ¡c nháº­n, lá»›p chÆ°a báº¯t Ä‘áº§u há»c.";
-  if (value === "Cancelled" || value === 5) return "ÄÄƒng kÃ½ Ä‘Ã£ há»§y, khÃ´ng tÃ­nh tiáº¿n Ä‘á»™.";
-  if (isCompleted(course)) return "KhÃ³a há»c Ä‘Ã£ hoÃ n thÃ nh. Báº¡n cÃ³ thá»ƒ Ä‘Ã¡nh giÃ¡ khÃ³a há»c vÃ  giáº£ng viÃªn.";
-  return `${course.completedSessions ?? 0}/${course.totalSessions ?? 0} buá»•i Ä‘Ã£ ghi nháº­n.`;
+  if (isInvalidEnrollmentPeriod(course)) return "Ngày ghi danh sau khi lớp đã kết thúc. Vui lòng liên hệ Admin để chuyển lớp.";
+  if (value === "Pending" || value === 1) return "Chờ Admin duyệt, chưa có tiến độ học.";
+  if (value === "Confirmed" || value === 2) return "Đã xác nhận, lớp chưa bắt đầu học.";
+  if (value === "Cancelled" || value === 5) return "Đăng ký đã hủy, không tính tiến độ.";
+  if (isCompleted(course)) return "Khóa học đã hoàn thành. Bạn có thể đánh giá khóa học và giảng viên.";
+  return `${course.completedSessions ?? 0}/${course.totalSessions ?? 0} buổi đã ghi nhận.`;
 }
 
 function isInvalidEnrollmentPeriod(course) {

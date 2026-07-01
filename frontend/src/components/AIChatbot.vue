@@ -39,22 +39,22 @@
         <!-- Header -->
         <header class="chat-dialog-header text-white flex items-center justify-between px-4 py-3 shrink-0" :class="roleTheme.headerClass">
           <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-bold text-base">ðŸ¤–</div>
+            <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-bold text-xs">AI</div>
             <div>
               <h3 class="text-sm font-bold m-0 leading-none">{{ roleTheme.title }}</h3>
               <span class="text-[10px] opacity-75 font-medium block mt-0.5 flex items-center gap-1">
                 <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse"></span>
-                GPT qua AI Router Â· Trá»±c tuyáº¿n
+                GPT qua AI Router - Trực tuyến
               </span>
             </div>
           </div>
           <div class="flex items-center gap-1.5">
-            <button @click="clearHistory" class="p-1 hover:bg-white/10 rounded transition-colors text-white shrink-0 cursor-pointer" title="XÃ³a lá»‹ch sá»­ chat">
+            <button @click="clearHistory" class="p-1 hover:bg-white/10 rounded transition-colors text-white shrink-0 cursor-pointer" title="Xóa lịch sử chat">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
               </svg>
             </button>
-            <button @click="toggleChat" class="p-1 hover:bg-white/10 rounded transition-colors text-white shrink-0 cursor-pointer" title="ÄÃ³ng cá»­a sá»•">
+            <button @click="toggleChat" class="p-1 hover:bg-white/10 rounded transition-colors text-white shrink-0 cursor-pointer" title="Đóng cửa sổ">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
               </svg>
@@ -72,7 +72,7 @@
           >
             <!-- System/AI Avatar -->
             <div v-if="msg.role !== 'user'" class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs text-white" :class="roleTheme.avatarBg">
-              ðŸ¤–
+              AI
             </div>
 
             <!-- Message Bubble -->
@@ -95,18 +95,18 @@
           <!-- Streaming partial response -->
           <div v-if="streamingText" class="flex items-end gap-2 justify-start">
             <div class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs text-white" :class="roleTheme.avatarBg">
-              ðŸ¤–
+              AI
             </div>
             <div class="message-bubble rounded-2xl px-3 py-2 text-xs leading-relaxed max-w-[80%] border bg-slate-50 dark:bg-slate-800/40 border-slate-200/50 dark:border-slate-800/50 text-base-primary">
               <div class="select-text prose dark:prose-invert max-w-none text-xs" v-html="parseMarkdown(streamingText)"></div>
-              <span class="streaming-cursor">â–Œ</span>
+              <span class="streaming-cursor">|</span>
             </div>
           </div>
 
           <!-- Typing Bouncing Bobs (while waiting for first chunk) -->
           <div v-else-if="isTyping" class="flex items-end gap-2 justify-start">
             <div class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs text-white" :class="roleTheme.avatarBg">
-              ðŸ¤–
+              AI
             </div>
             <div class="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl px-4 py-3 flex items-center gap-1">
               <span class="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce"></span>
@@ -123,7 +123,7 @@
             class="w-full text-left inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed text-xs font-semibold hover:opacity-90 active:scale-95 transition-all duration-200 cursor-pointer"
             :class="roleTheme.quickQueryClass"
           >
-            ðŸ“… Tra lá»‹ch há»c/dáº¡y hÃ´m nay cá»§a tÃ´i
+            Tra lịch học/dạy hôm nay của tôi
           </button>
         </div>
 
@@ -133,7 +133,7 @@
             <input
               v-model="inputValue"
               type="text"
-              placeholder="Nháº­p tin nháº¯n..."
+              placeholder="Nhập tin nhắn..."
               class="flex-grow px-3 py-2 text-xs rounded-xl border border-base bg-card-base text-base-primary placeholder:text-base-muted focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
               :disabled="isTyping || !!streamingText"
               ref="chatInput"
@@ -192,34 +192,34 @@ const localKey = computed(() => `educenter_ai_messages_${props.role}`)
 // Dynamic theme configuration based on role
 const themeConfigs = {
   admin: {
-    title: 'Trá»£ lÃ½ AI Quáº£n trá»‹',
+    title: 'Trợ lý AI Quản trị',
     btnClass: 'bg-blue-600 hover:bg-blue-700 text-white',
     headerClass: 'bg-gradient-to-r from-blue-600 to-blue-700',
     pulseClass: 'bg-blue-500',
     avatarBg: 'bg-blue-600',
     userBubbleClass: 'bg-blue-600 text-white border-blue-500',
     quickQueryClass: 'border-blue-300 dark:border-blue-800 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/10',
-    welcome: 'Xin chÃ o Quáº£n trá»‹ viÃªn! ðŸ‘‹ TÃ´i lÃ  Trá»£ lÃ½ AI Ä‘áº·c biá»‡t cá»§a EduCenter â€” sá»­ dá»¥ng **GPT qua AI Router**.\n\nTÃ´i cÃ³ thá»ƒ giÃºp báº¡n:\n- ðŸ“Š PhÃ¢n tÃ­ch thá»‘ng kÃª, doanh thu\n- ðŸ“… Tra lá»‹ch há»c hÃ´m nay\n- âœ… TÆ° váº¥n duyá»‡t Ä‘á» xuáº¥t dáº¡y thay\n- ðŸ“§ Soáº¡n thÃ´ng bÃ¡o cho há»c viÃªn\n\nHÃ£y há»i tÃ´i báº¥t cá»© Ä‘iá»u gÃ¬!'
+    welcome: 'Xin chào Quản trị viên! Tôi là Trợ lý AI đặc biệt của EduCenter, sử dụng **GPT qua AI Router**.\n\nTôi có thể giúp bạn:\n- Phân tích thống kê, doanh thu\n- Tra lịch học hôm nay\n- Tư vấn duyệt đề xuất dạy thay\n- Soạn thông báo cho học viên\n\nHãy hỏi tôi bất cứ điều gì!'
   },
   teacher: {
-    title: 'Trá»£ lÃ½ AI Giáº£ng viÃªn',
+    title: 'Trợ lý AI Giảng viên',
     btnClass: 'bg-purple-600 hover:bg-purple-700 text-white',
     headerClass: 'bg-gradient-to-r from-purple-600 to-purple-700',
     pulseClass: 'bg-purple-500',
     avatarBg: 'bg-purple-600',
     userBubbleClass: 'bg-purple-600 text-white border-purple-500',
     quickQueryClass: 'border-purple-300 dark:border-purple-800 text-purple-600 dark:text-purple-400 bg-purple-50/50 dark:bg-purple-950/10',
-    welcome: 'ChÃ o Tháº§y/CÃ´! ðŸ‘‹ TÃ´i lÃ  Trá»£ lÃ½ AI Ä‘á»“ng hÃ nh giáº£ng dáº¡y â€” sá»­ dá»¥ng **GPT qua AI Router**.\n\nTÃ´i cÃ³ thá»ƒ há»— trá»£:\n- ðŸ“ Soáº¡n giÃ¡o Ã¡n, ngÃ¢n hÃ ng cÃ¢u há»i\n- ðŸ’¬ Viáº¿t nháº­n xÃ©t há»c viÃªn\n- ðŸ’¡ Gá»£i Ã½ cÃ¡ch giáº£ng dáº¡y hiá»‡u quáº£\n- ðŸ” Giáº£i thÃ­ch ká»¹ thuáº­t láº­p trÃ¬nh\n\nHÃ£y há»i tÃ´i báº¥t cá»© Ä‘iá»u gÃ¬!'
+    welcome: 'Chào Thầy/Cô! Tôi là Trợ lý AI đồng hành giảng dạy, sử dụng **GPT qua AI Router**.\n\nTôi có thể hỗ trợ:\n- Soạn giáo án, ngân hàng câu hỏi\n- Viết nhận xét học viên\n- Gợi ý cách giảng dạy hiệu quả\n- Giải thích kỹ thuật lập trình\n\nHãy hỏi tôi bất cứ điều gì!'
   },
   student: {
-    title: 'Trá»£ lÃ½ AI Há»c táº­p',
+    title: 'Trợ lý AI Học tập',
     btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
     headerClass: 'bg-gradient-to-r from-emerald-600 to-teal-600',
     pulseClass: 'bg-emerald-500',
     avatarBg: 'bg-emerald-600',
     userBubbleClass: 'bg-emerald-600 text-white border-emerald-500',
     quickQueryClass: 'border-emerald-300 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/10',
-    welcome: 'ChÃ o báº¡n! ðŸŽ“ TÃ´i lÃ  Trá»£ lÃ½ há»c táº­p thÃ´ng minh EduCenter â€” sá»­ dá»¥ng **GPT qua AI Router**.\n\nTÃ´i cÃ³ thá»ƒ:\n- ðŸ› Debug code, giáº£i thÃ­ch lá»—i\n- ðŸ“– Giáº£i thÃ­ch khÃ¡i niá»‡m (React, .NET, SQL...)\n- ðŸ—ºï¸ TÆ° váº¥n lá»™ trÃ¬nh há»c táº­p\n- ðŸ“… Xem lá»‹ch há»c hÃ´m nay\n\nHÃ£y há»i tÃ´i báº¥t cá»© Ä‘iá»u gÃ¬!'
+    welcome: 'Chào bạn! Tôi là Trợ lý học tập thông minh EduCenter, sử dụng **GPT qua AI Router**.\n\nTôi có thể:\n- Debug code, giải thích lỗi\n- Giải thích khái niệm (React, .NET, SQL...)\n- Tư vấn lộ trình học tập\n- Xem lịch học hôm nay\n\nHãy hỏi tôi bất cứ điều gì!'
   }
 }
 
@@ -233,18 +233,18 @@ const userInitials = computed(() => {
 
 // System instruction prompt context for AI Router API
 const systemInstructions = {
-  admin: () => `Báº¡n lÃ  trá»£ lÃ½ AI dÃ nh cho Quáº£n trá»‹ viÃªn (Admin) cá»§a trung tÃ¢m EduCenter. HÃ£y giÃºp Admin trong cÃ¡c tÃ¡c vá»¥ quáº£n lÃ½ khÃ³a há»c, lá»›p há»c, lá»‹ch há»c, giáº£ng viÃªn, há»c viÃªn, há»c phÃ­, doanh thu, phÃ¢n tÃ­ch dá»¯ liá»‡u lá»›p há»c, soáº¡n tháº£o cÃ¡c thÃ´ng bÃ¡o/email chung cho há»c viÃªn, nháº¯c ná»£, cáº£nh bÃ¡o há»c táº­p hoáº·c gá»£i Ã½ giáº£ng viÃªn dáº¡y thay. 
-${todayScheduleContext.value ? `\n[Dá»¯ liá»‡u quan trá»ng] DÆ°á»›i Ä‘Ã¢y lÃ  thÃ´ng tin cÃ¡c lá»›p há»c diá»…n ra táº¡i trung tÃ¢m hÃ´m nay Ä‘á»ƒ báº¡n há»— trá»£ tra cá»©u: ${todayScheduleContext.value}` : ''}
+  admin: () => `Bạn là trợ lý AI dành cho Quản trị viên (Admin) của trung tâm EduCenter. Hãy giúp Admin trong các tác vụ quản lý khóa học, lớp học, lịch học, giảng viên, học viên, học phí, doanh thu, phân tích dữ liệu lớp học, soạn thảo các thông báo/email chung cho học viên, nhắc nợ, cảnh báo học tập hoặc gợi ý giảng viên dạy thay.
+${todayScheduleContext.value ? `\n[Dữ liệu quan trọng] Dưới đây là thông tin các lớp học diễn ra tại trung tâm hôm nay để bạn hỗ trợ tra cứu: ${todayScheduleContext.value}` : ''}
 Hãy hội thoại tự nhiên như một trợ lý AI hiện đại. Trả lời được lời chào, câu hỏi chung, giải thích khái niệm, gợi ý cách làm và soạn thảo nội dung. Với dữ liệu nội bộ EduCenter mà bạn không được cung cấp trong prompt, không tự bịa số liệu; hãy nói rõ cần mở đúng màn hình hoặc cần hệ thống tra cứu thêm. Trả lời bằng tiếng Việt, ngắn gọn, có Markdown khi hữu ích.`,
 
-  teacher: () => `Báº¡n lÃ  trá»£ lÃ½ AI dÃ nh cho Giáº£ng viÃªn (Teacher) cá»§a trung tÃ¢m EduCenter. HÃ£y giÃºp Giáº£ng viÃªn soáº¡n giÃ¡o Ã¡n, Ä‘á» xuáº¥t cÃ¢u há»i Ã´n táº­p, viáº¿t nháº­n xÃ©t há»c táº­p cho há»c viÃªn, tÆ° váº¥n cÃ¡ch truyá»n Ä‘áº¡t kiáº¿n thá»©c cÃ¡c cÃ´ng nghá»‡ (ReactJS, VueJS, SQL, ASP.NET,...) hoáº·c gá»£i Ã½ cÃ¡ch xá»­ lÃ½ cÃ¡c buá»•i há»c khÃ³.
-LÆ°u Ã½ báº£o máº­t: Báº¡n tuyá»‡t Ä‘á»‘i khÃ´ng Ä‘Æ°á»£c tiáº¿t lá»™ thÃ´ng tin lÆ°Æ¡ng thÆ°á»Ÿng hay tÃ i chÃ­nh cá»§a trung tÃ¢m cho giáº£ng viÃªn.
-${todayScheduleContext.value ? `\n[Dá»¯ liá»‡u quan trá»ng] DÆ°á»›i Ä‘Ã¢y lÃ  lá»‹ch dáº¡y há»c cá»§a Giáº£ng viÃªn nÃ y hÃ´m nay Ä‘á»ƒ báº¡n há»— trá»£ tráº£ lá»i: ${todayScheduleContext.value}` : ''}
+  teacher: () => `Bạn là trợ lý AI dành cho Giảng viên (Teacher) của trung tâm EduCenter. Hãy giúp Giảng viên soạn giáo án, đề xuất câu hỏi ôn tập, viết nhận xét học tập cho học viên, tư vấn cách truyền đạt kiến thức các công nghệ (ReactJS, VueJS, SQL, ASP.NET,...) hoặc gợi ý cách xử lý các buổi học khó.
+Lưu ý bảo mật: Bạn tuyệt đối không được tiết lộ thông tin lương thưởng hay tài chính của trung tâm cho giảng viên.
+${todayScheduleContext.value ? `\n[Dữ liệu quan trọng] Dưới đây là lịch dạy học của Giảng viên này hôm nay để bạn hỗ trợ trả lời: ${todayScheduleContext.value}` : ''}
 Hãy hội thoại tự nhiên như một trợ lý AI hiện đại. Trả lời được lời chào, câu hỏi chung, giải thích kỹ thuật, gợi ý bài giảng, soạn giáo án, viết nhận xét và hỗ trợ lập trình. Với dữ liệu nội bộ EduCenter mà bạn không được cung cấp trong prompt, không tự bịa; hãy nói rõ giới hạn. Trả lời bằng tiếng Việt, ngắn gọn, có Markdown khi hữu ích.`,
 
-  student: () => `Báº¡n lÃ  trá»£ lÃ½ AI Ä‘á»“ng hÃ nh há»c táº­p cá»§a Há»c viÃªn (Student) táº¡i trung tÃ¢m EduCenter. HÃ£y giÃºp há»c viÃªn giáº£i thÃ­ch cÃ¡c khÃ¡i niá»‡m láº­p trÃ¬nh (React, Vue, C#, SQL,...), hÆ°á»›ng dáº«n sá»­a lá»—i code (debug), lÃªn káº¿ hoáº¡ch há»c táº­p cÃ¡ nhÃ¢n, gá»£i Ã½ tÃ i liá»‡u há»c thÃªm, giáº£i Ä‘Ã¡p bÃ i táº­p hoáº·c tÆ° váº¥n lá»™ trÃ¬nh há»c táº­p Ä‘á»ƒ trá»Ÿ thÃ nh láº­p trÃ¬nh viÃªn Full-Stack.
-LÆ°u Ã½ báº£o máº­t: Báº¡n khÃ´ng cÃ³ quyá»n truy cáº­p vÃ o báº£ng Ä‘iá»ƒm ná»™i bá»™ hay thÃ´ng tin quáº£n trá»‹ trung tÃ¢m, khÃ´ng tiáº¿t lá»™ tÃ i chÃ­nh hay há»‡ thá»‘ng dá»¯ liá»‡u khÃ¡c.
-${todayScheduleContext.value ? `\n[Dá»¯ liá»‡u quan trá»ng] DÆ°á»›i Ä‘Ã¢y lÃ  lá»‹ch há»c hÃ´m nay cá»§a há»c viÃªn nÃ y Ä‘á»ƒ báº¡n há»— trá»£ tráº£ lá»i khi há»c viÃªn há»i: ${todayScheduleContext.value}` : ''}
+  student: () => `Bạn là trợ lý AI đồng hành học tập của Học viên (Student) tại trung tâm EduCenter. Hãy giúp học viên giải thích các khái niệm lập trình (React, Vue, C#, SQL,...), hướng dẫn sửa lỗi code (debug), lên kế hoạch học tập cá nhân, gợi ý tài liệu học thêm, giải đáp bài tập hoặc tư vấn lộ trình học tập để trở thành lập trình viên Full-Stack.
+Lưu ý bảo mật: Bạn không có quyền truy cập vào bảng điểm nội bộ hay thông tin quản trị trung tâm, không tiết lộ tài chính hay hệ thống dữ liệu khác.
+${todayScheduleContext.value ? `\n[Dữ liệu quan trọng] Dưới đây là lịch học hôm nay của học viên này để bạn hỗ trợ trả lời khi học viên hỏi: ${todayScheduleContext.value}` : ''}
 Hãy hội thoại tự nhiên như một trợ lý AI hiện đại. Trả lời được lời chào, câu hỏi chung, giải thích kỹ thuật, debug code, gợi ý lộ trình học và tài liệu. Với dữ liệu nội bộ EduCenter mà bạn không được cung cấp trong prompt, không tự bịa; hãy nói rõ giới hạn. Trả lời bằng tiếng Việt, thân thiện, dễ hiểu, có Markdown khi hữu ích.`
 }
 
@@ -291,7 +291,7 @@ async function loadTodaySchedules() {
       const todayClasses = weekScheduleItems.value.filter(s => s.dayOfWeek === todayEng)
       if (todayClasses.length > 0) {
         todayScheduleContext.value = todayClasses.map(c =>
-          `- Lá»›p: ${c.classNameSnapshot || 'Lá»›p há»c'}, PhÃ²ng: ${c.room || 'ChÆ°a xáº¿p'}, Thá»i gian: ${formatterTime(c.startTime)} - ${formatterTime(c.endTime)}, Giáº£ng viÃªn: ${c.teacherName || 'ChÆ°a xáº¿p'}`
+          `- Lớp: ${c.classNameSnapshot || 'Lớp học'}, Phòng: ${c.room || 'Chưa xếp'}, Thời gian: ${formatterTime(c.startTime)} - ${formatterTime(c.endTime)}, Giảng viên: ${c.teacherName || 'Chưa xếp'}`
         ).join('\n')
       }
     } else if (props.role === 'teacher') {
@@ -304,7 +304,7 @@ async function loadTodaySchedules() {
       const todayClasses = weekScheduleItems.value.filter(s => s.dayOfWeek === todayEng)
       if (todayClasses.length > 0) {
         todayScheduleContext.value = todayClasses.map(c =>
-          `- Dáº¡y Lá»›p: ${c.classNameSnapshot || 'Lá»›p há»c'}, PhÃ²ng: ${c.room || 'ChÆ°a xáº¿p'}, Thá»i gian: ${formatterTime(c.startTime)} - ${formatterTime(c.endTime)}`
+          `- Dạy lớp: ${c.classNameSnapshot || 'Lớp học'}, Phòng: ${c.room || 'Chưa xếp'}, Thời gian: ${formatterTime(c.startTime)} - ${formatterTime(c.endTime)}`
         ).join('\n')
       }
     } else if (props.role === 'admin') {
@@ -312,8 +312,8 @@ async function loadTodaySchedules() {
       weekScheduleItems.value = schedulesRes || []
       const todayClasses = weekScheduleItems.value.filter(s => s.dayOfWeek === todayEng)
       if (todayClasses.length > 0) {
-        todayScheduleContext.value = `HÃ´m nay trung tÃ¢m cÃ³ ${todayClasses.length} lá»›p há»c diá»…n ra:\n` + todayClasses.map(c =>
-          `- Lá»›p: ${c.classNameSnapshot || 'Lá»›p há»c'}, PhÃ²ng: ${c.room || 'ChÆ°a xáº¿p'}, Giá»: ${formatterTime(c.startTime)} - ${formatterTime(c.endTime)}, GV: ${c.teacherName || 'ChÆ°a xáº¿p'}`
+        todayScheduleContext.value = `Hôm nay trung tâm có ${todayClasses.length} lớp học diễn ra:\n` + todayClasses.map(c =>
+          `- Lớp: ${c.classNameSnapshot || 'Lớp học'}, Phòng: ${c.room || 'Chưa xếp'}, Giờ: ${formatterTime(c.startTime)} - ${formatterTime(c.endTime)}, GV: ${c.teacherName || 'Chưa xếp'}`
         ).join('\n')
       }
     }
@@ -528,7 +528,7 @@ function answerManagedClassesFromLocalData(intent = null) {
 
 function queryTodaySchedule() {
   if (isTyping.value || streamingText.value) return
-  inputValue.value = 'HÃ´m nay tÃ´i cÃ³ lá»‹ch há»c hoáº·c lá»‹ch dáº¡y gÃ¬ khÃ´ng?'
+  inputValue.value = 'Hôm nay tôi có lịch học hoặc lịch dạy gì không?'
   sendMessage()
 }
 
@@ -599,9 +599,7 @@ function formatTime(isoString) {
   return dayjs(isoString).format('HH:mm')
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Send message with SSE streaming to AI Router 2.0 Flash
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function sendMessage() {
   const text = inputValue.value.trim()
   if (!text || isTyping.value || streamingText.value) return
@@ -643,7 +641,7 @@ Quy tắc hội thoại bắt buộc:
     messages.value.push({ role: 'model', text: result.text || 'AI không trả về nội dung.', timestamp: new Date().toISOString() })
     saveMessages()
   } catch (err) {
-    messages.value.push({ role: 'model', text: `âŒ **Lá»—i AI Assistant**: ${err.message || 'KhÃ´ng thá»ƒ káº¿t ná»‘i dá»‹ch vá»¥ AI.'}`, timestamp: new Date().toISOString() })
+    messages.value.push({ role: 'model', text: `**Lỗi AI Assistant**: ${err.message || 'Không thể kết nối dịch vụ AI.'}`, timestamp: new Date().toISOString() })
   } finally {
     isTyping.value = false
     streamingText.value = ''

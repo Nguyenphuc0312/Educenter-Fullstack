@@ -158,7 +158,7 @@ fields.find((field) => field.name === 'phone').rules = phoneRules
 // Sectioned form group configuration
 const formGroups = [
   {
-    title: 'Thông tin cá nhân',
+    title: 'Th�ng tin c� nh�n',
     fields: ['fullName', 'email', 'phone', 'avatarUrl']
   },
   {

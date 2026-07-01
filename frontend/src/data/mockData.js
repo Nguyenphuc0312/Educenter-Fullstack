@@ -160,7 +160,7 @@ export const courses = [
     description: "Lộ trình toàn diện: Frontend React + Backend .NET + Database SQL + Deploy thực tế.",
     teacher: "Phạm Anh Tuấn",
     teacherId: 4,
-    level: "Nâng cao",
+    level: "N�ng cao",
     sessions: 48,
     price: 5500000,
     originalPrice: 7000000,
