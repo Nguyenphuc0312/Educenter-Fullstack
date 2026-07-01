@@ -27,7 +27,7 @@ builder.Services.AddScoped<IAiAssistantService, AiAssistantService>();
 builder.Services.AddSingleton<IAiFallbackStore, AiFallbackStore>();
 builder.Services.AddHttpClient("AiRouter", client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["AiRouter:BaseUrl"] ?? "https://luongchidung.online/v1/");
+    client.BaseAddress = new Uri(builder.Configuration["AiRouter:BaseUrl"] ?? "https://openrouter.ai/api/v1/");
 });
 builder.Services.AddHttpClient("PaymentNotification", client =>
 {

@@ -292,8 +292,8 @@ public sealed class AiAssistantService(StudentDbContext db, IHttpClientFactory c
         var guard =
             $"Bạn là trợ lý AI EduCenter cho vai trò {role}. " +
             "Chỉ hỗ trợ đúng tác vụ trong hệ thống EduCenter. " +
-            "Không tiết lộ dữ liệu tài khoản/role khác, không bỏ qua phân quyền, không tự gửi email hay tự thực hiện thao tác thay người dùng. " +
-            "Nếu thiếu dữ liệu hoặc yêu cầu vượt quyền, hãy nói rõ giới hạn.";
+            "Kh�ng ti?t l? d? li?u t�i kho?n/role kh�c, kh�ng b? qua ph�n quy?n, kh�ng t? g?i email hay t? th?c hi?n thao t�c thay ngu?i d�ng. " +
+            "N?u thi?u d? li?u ho?c y�u c?u vu?t quy?n, h�y n�i r� gi?i h?n.";
 
         if (request.JsonMode)
         {
@@ -365,13 +365,15 @@ public sealed class AiAssistantService(StudentDbContext db, IHttpClientFactory c
         if (string.IsNullOrWhiteSpace(key)) throw new AppException("AI Router is not configured on the server", 503);
 
         var client = clients.CreateClient("AiRouter");
-        using var request = new HttpRequestMessage(HttpMethod.Post, "responses");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+        request.Headers.TryAddWithoutValidation("HTTP-Referer", "http://103.72.96.117");
+        request.Headers.TryAddWithoutValidation("X-Title", "EduCenter");
         request.Content = JsonContent.Create(new
         {
-            model = config["AiRouter:Model"] ?? "gpt-5.4-mini",
-            input,
-            max_output_tokens = maxOutputTokens
+            model = config["AiRouter:Model"] ?? "openai/gpt-4o-mini",
+            messages = NormalizeMessages(input),
+            max_tokens = maxOutputTokens
         });
 
         HttpResponseMessage response;
@@ -385,18 +387,54 @@ public sealed class AiAssistantService(StudentDbContext db, IHttpClientFactory c
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new AppException("AI Router phản hồi quá lâu. Vui lòng thử lại sau.", StatusCodes.Status504GatewayTimeout);
+            throw new AppException("AI Router ph?n h?i qu� l�u. Vui l�ng th? l?i sau.", StatusCodes.Status504GatewayTimeout);
         }
 
         using (response)
         {
             var raw = await response.Content.ReadAsStringAsync(ct);
-            if (!response.IsSuccessStatusCode) throw new AppException($"AI Router request failed: {response.StatusCode}", 502);
+            if (!response.IsSuccessStatusCode) throw new AppException($"AI Router request failed: {response.StatusCode}. {raw}", 502);
 
             using var json = JsonDocument.Parse(raw);
             var text = ExtractResponseText(json.RootElement);
             return string.IsNullOrWhiteSpace(text) ? "AI không trả về nội dung." : text;
         }
+    }
+
+    private static List<object> NormalizeMessages(object input)
+    {
+        var messages = new List<object>();
+        var root = JsonSerializer.SerializeToElement(input);
+
+        if (root.ValueKind == JsonValueKind.String)
+        {
+            messages.Add(new { role = "user", content = root.GetString() ?? string.Empty });
+            return messages;
+        }
+
+        if (root.ValueKind != JsonValueKind.Array)
+        {
+            messages.Add(new { role = "user", content = root.ToString() });
+            return messages;
+        }
+
+        foreach (var item in root.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+            var role = item.TryGetProperty("role", out var roleElement) && roleElement.ValueKind == JsonValueKind.String
+                ? roleElement.GetString() ?? "user"
+                : "user";
+            var content = item.TryGetProperty("content", out var contentElement) && contentElement.ValueKind == JsonValueKind.String
+                ? contentElement.GetString() ?? string.Empty
+                : string.Empty;
+
+            if (role.Equals("developer", StringComparison.OrdinalIgnoreCase)) role = "system";
+            if (role is not "system" and not "assistant" and not "user") role = "user";
+            if (!string.IsNullOrWhiteSpace(content)) messages.Add(new { role, content });
+        }
+
+        if (messages.Count == 0) messages.Add(new { role = "user", content = string.Empty });
+        return messages;
     }
 
     private static IEnumerable<AiKnowledgeChunk> Rank(IEnumerable<AiKnowledgeChunk> chunks, string query)
@@ -416,6 +454,18 @@ public sealed class AiAssistantService(StudentDbContext db, IHttpClientFactory c
 
     private static string? ExtractResponseText(JsonElement root)
     {
+        if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var choice in choices.EnumerateArray())
+            {
+                if (!choice.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object) continue;
+                if (message.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
+                {
+                    return content.GetString();
+                }
+            }
+        }
+
         if (root.TryGetProperty("output_text", out var outputText) && outputText.ValueKind == JsonValueKind.String)
         {
             return outputText.GetString();
