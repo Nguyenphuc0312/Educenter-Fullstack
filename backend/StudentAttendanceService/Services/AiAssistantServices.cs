@@ -374,13 +374,29 @@ public sealed class AiAssistantService(StudentDbContext db, IHttpClientFactory c
             max_output_tokens = maxOutputTokens
         });
 
-        using var response = await client.SendAsync(request, ct);
-        var raw = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode) throw new AppException($"AI Router request failed: {response.StatusCode}", 502);
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(request, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new AppException($"Không thể kết nối AI Router ({ex.Message}). Vui lòng kiểm tra AiRouter:BaseUrl hoặc cấu hình DNS/server.", StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new AppException("AI Router phản hồi quá lâu. Vui lòng thử lại sau.", StatusCodes.Status504GatewayTimeout);
+        }
 
-        using var json = JsonDocument.Parse(raw);
-        var text = ExtractResponseText(json.RootElement);
-        return string.IsNullOrWhiteSpace(text) ? "AI không trả về nội dung." : text;
+        using (response)
+        {
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode) throw new AppException($"AI Router request failed: {response.StatusCode}", 502);
+
+            using var json = JsonDocument.Parse(raw);
+            var text = ExtractResponseText(json.RootElement);
+            return string.IsNullOrWhiteSpace(text) ? "AI không trả về nội dung." : text;
+        }
     }
 
     private static IEnumerable<AiKnowledgeChunk> Rank(IEnumerable<AiKnowledgeChunk> chunks, string query)
