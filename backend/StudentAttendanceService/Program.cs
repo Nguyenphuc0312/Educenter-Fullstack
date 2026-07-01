@@ -170,7 +170,7 @@ BEGIN
         [Id] uniqueidentifier NOT NULL PRIMARY KEY,
         [DocumentId] uniqueidentifier NOT NULL,
         [ChunkIndex] int NOT NULL,
-        [Content] nvarchar(6000) NOT NULL,
+        [Content] nvarchar(max) NOT NULL,
         CONSTRAINT [FK_AiKnowledgeChunks_AiKnowledgeDocuments_DocumentId]
             FOREIGN KEY ([DocumentId]) REFERENCES [dbo].[AiKnowledgeDocuments]([Id]) ON DELETE CASCADE
     );

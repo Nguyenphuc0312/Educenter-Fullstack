@@ -137,7 +137,7 @@ public sealed class AiKnowledgeChunk
     public Guid Id { get; set; }
     public Guid DocumentId { get; set; }
     public int ChunkIndex { get; set; }
-    [MaxLength(6000)] public string Content { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
     public AiKnowledgeDocument? Document { get; set; }
 }
 
