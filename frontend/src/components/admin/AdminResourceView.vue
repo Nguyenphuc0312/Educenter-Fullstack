@@ -474,7 +474,7 @@ const tableColumns = computed(() => {
 
     if (column.type === 'status') {
       mappedColumn.filters = props.statusOptions
-      mappedColumn.onFilter = (value, record) => String(record[props.statusField]) === String(value)
+      mappedColumn.onFilter = (value, record) => normalizeStatusValue(record[props.statusField]) === normalizeStatusValue(value)
     }
 
     return mappedColumn
@@ -505,7 +505,7 @@ const filteredItems = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
   return items.value.filter((item) => {
     const matchesKeyword = !keyword || props.searchableFields.some((field) => String(item[field] ?? '').toLowerCase().includes(keyword))
-    const matchesStatus = statusFilter.value === undefined || item[props.statusField] === statusFilter.value
+    const matchesStatus = statusFilter.value === undefined || normalizeStatusValue(item[props.statusField]) === normalizeStatusValue(statusFilter.value)
 
     let matchesCustom = true
     if (props.filterFn) {
@@ -515,6 +515,38 @@ const filteredItems = computed(() => {
     return matchesKeyword && matchesStatus && matchesCustom
   })
 })
+
+const STATUS_VALUE_ALIASES = {
+  Draft: 0,
+  Open: 1,
+  Closed: 2,
+  ComingSoon: 3,
+  Full: 1,
+  InProgress: 2,
+  Completed: 3,
+  Cancelled: 4,
+  Pending: 1,
+  Confirmed: 2,
+  Unpaid: 1,
+  Partial: 2,
+  Paid: 3,
+  Overdue: 4,
+  Success: 1,
+  Processing: 2,
+  Failed: 3,
+  CancelledPayment: 4,
+  Active: 1,
+  Inactive: 2,
+  Locked: 2,
+  Suspended: 3,
+}
+
+function normalizeStatusValue(value) {
+  if (value === null || value === undefined || value === '') return value
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value)
+  return STATUS_VALUE_ALIASES[value] ?? value
+}
 
 function getSortColumn() {
   return props.columns.find((column) => columnKey(column) === sortState.columnKey)

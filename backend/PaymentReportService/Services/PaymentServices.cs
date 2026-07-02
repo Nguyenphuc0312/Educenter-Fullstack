@@ -460,6 +460,8 @@ public sealed class PaymentTransactionService(IRepository<PaymentTransaction> pa
     public async Task<IReadOnlyList<PaymentTransactionResponse>> GetAllAsync(CancellationToken cancellationToken) => await payments.Query()
         .Include(x => x.Invoice)
         .OrderByDescending(x => x.Status == PaymentStatus.Pending)
+        .ThenByDescending(x => x.Status == PaymentStatus.Pending && x.CreatedBy != "admin")
+        .ThenByDescending(x => x.CreatedAt)
         .ThenByDescending(x => x.PaymentDate)
         .Select(x => x.ToResponse())
         .ToListAsync(cancellationToken);
